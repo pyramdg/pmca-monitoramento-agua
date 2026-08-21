@@ -10,7 +10,7 @@
 
 // Alterado uma única vez após o deploy. No uso diário não é preciso digitar URL.
 #ifndef PMCA_API_BASE_URL
-#define PMCA_API_BASE_URL "https://SEU-DOMINIO.up.railway.app"
+#define PMCA_API_BASE_URL "https://pmca-monitoramento-agua-production.up.railway.app"
 #endif
 
 constexpr uint8_t SENSOR_PIN=27, LED_PIN=2, CONFIG_PIN=0;
