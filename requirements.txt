@@ -1,0 +1,24 @@
+# ========== FastAPI & Web ==========
+fastapi==0.109.0
+uvicorn[standard]==0.27.0
+python-multipart==0.0.6
+
+# ========== Database ==========
+sqlalchemy==2.0.23
+alembic==1.13.0
+
+# ========== Autenticação & Segurança ==========
+pydantic[email]==2.5.2
+python-jose[cryptography]==3.3.0
+passlib[bcrypt]==1.7.4
+PyJWT==2.8.1
+python-dotenv==1.0.0
+bcrypt==4.1.1
+
+# ========== Utilidades ==========
+requests==2.31.0
+
+# ========== Desenvolvimento (opcional) ==========
+pytest==7.4.3
+black==23.12.1
+flake8==6.1.0

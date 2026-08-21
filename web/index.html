@@ -1,0 +1,79 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#071a2b">
+  <title>PMCA | Monitoramento de água</title>
+  <link rel="stylesheet" href="/static/styles.css">
+</head>
+<body>
+  <div class="background" aria-hidden="true"></div>
+
+  <main id="auth-view" class="auth-shell">
+    <section class="brand-panel">
+      <div class="brand-mark">PM</div>
+      <p class="eyebrow">Monitoramento inteligente</p>
+      <h1>Cada litro conta.</h1>
+      <p class="brand-copy">Acompanhe vazão, consumo acumulado e histórico do seu sistema em tempo real.</p>
+      <div class="water-status"><span></span> Plataforma online</div>
+    </section>
+
+    <section class="auth-card">
+      <div class="auth-tabs" role="tablist">
+        <button class="tab active" data-mode="login" type="button">Entrar</button>
+        <button class="tab" data-mode="register" type="button">Criar conta</button>
+      </div>
+      <h2 id="auth-title">Acesse seu painel</h2>
+      <p id="auth-subtitle">Use seu e-mail e senha para continuar.</p>
+      <form id="auth-form">
+        <label>E-mail<input id="email" type="email" autocomplete="email" required placeholder="voce@exemplo.com"></label>
+        <label>Senha<input id="password" type="password" autocomplete="current-password" minlength="8" maxlength="128" required placeholder="Mínimo de 8 caracteres"></label>
+        <button class="primary full" id="auth-submit" type="submit">Entrar</button>
+        <p id="auth-error" class="form-error" role="alert"></p>
+      </form>
+    </section>
+  </main>
+
+  <main id="dashboard-view" class="dashboard hidden">
+    <header class="topbar">
+      <a class="logo" href="/dashboard"><span>PM</span><strong>PMCA</strong></a>
+      <div class="top-actions">
+        <div class="live"><i></i> Atualização automática</div>
+        <button id="logout" class="ghost" type="button">Sair</button>
+      </div>
+    </header>
+
+    <div class="dashboard-content">
+      <section class="welcome-row">
+        <div><p class="eyebrow">Visão geral</p><h1>Olá, <span id="user-name">usuário</span></h1><p>Dados atualizados diretamente do seu monitor de consumo.</p></div>
+        <button id="refresh" class="secondary" type="button">Atualizar dados</button>
+      </section>
+
+      <section class="metrics" aria-label="Resumo de consumo">
+        <article class="metric featured"><div class="metric-icon">L</div><p>Consumo acumulado</p><strong id="total">0,00 L</strong><small id="last-update">Sem leituras</small></article>
+        <article class="metric"><div class="metric-icon">↗</div><p>Vazão atual</p><strong id="flow">0,00 L/min</strong><small>Última medição recebida</small></article>
+        <article class="metric"><div class="metric-icon">≈</div><p>Média de hoje</p><strong id="average">0,00 L/min</strong><small>Média das leituras do dia</small></article>
+      </section>
+
+      <section class="grid">
+        <article class="panel chart-panel">
+          <div class="panel-head"><div><p class="eyebrow">Últimos 7 dias</p><h2>Histórico de consumo</h2></div><span id="reading-count" class="badge">0 leituras</span></div>
+          <div class="chart-wrap"><canvas id="chart" aria-label="Gráfico do consumo acumulado"></canvas><div id="empty-chart" class="empty">As leituras do sensor aparecerão aqui.</div></div>
+        </article>
+
+        <aside class="panel device-panel">
+          <p class="eyebrow">Dispositivo</p><h2>Conectar ESP32</h2>
+          <p>Gere uma chave para autorizar o envio das leituras. Uma nova chave desativa a anterior.</p>
+          <button id="generate-key" class="secondary full" type="button">Gerar API key</button>
+          <div id="key-box" class="key-box hidden"><span>Copie agora — ela não será exibida novamente.</span><code id="api-key"></code><button id="copy-key" class="ghost full" type="button">Copiar chave</button></div>
+          <details id="test-reading" class="test-reading hidden"><summary>Enviar leitura de teste</summary><form id="reading-form"><label>Vazão (L/min)<input id="test-flow" type="number" min="0" step="0.01" value="1.25" required></label><label>Consumo total (L)<input id="test-total" type="number" min="0" step="0.01" value="10.5" required></label><button class="primary full" type="submit">Enviar leitura</button></form></details>
+          <p id="device-message" class="device-message" role="status"></p>
+        </aside>
+      </section>
+    </div>
+  </main>
+
+  <script src="/static/app.js" defer></script>
+</body>
+</html>
