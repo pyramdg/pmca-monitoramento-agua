@@ -1,8 +1,10 @@
+from datetime import timedelta
+
 from fastapi import APIRouter, Depends, HTTPException, Query, status, Header
 from sqlalchemy.orm import Session
 
 from database import get_db
-from models import User, Leitura
+from models import Device, User, Leitura
 from schemas import LeituraCreate, LeituraResponse
 from auth_utils import hash_api_key, utc_now
 
@@ -27,8 +29,13 @@ def verify_api_key(authorization: str = Header(None), db: Session = Depends(get_
             detail="Formato de Authorization inválido",
         )
 
-    # Procurar usuário com essa API key
-    user = db.query(User).filter(User.api_key == hash_api_key(api_key)).first()
+    key_hash = hash_api_key(api_key)
+    device = db.query(Device).filter(Device.api_key_hash == key_hash).first()
+    user = device.user if device else None
+
+    # Compatibilidade temporária com chaves criadas antes da tabela de aparelhos.
+    if not user:
+        user = db.query(User).filter(User.api_key == key_hash).first()
 
     if not user:
         raise HTTPException(
@@ -41,19 +48,25 @@ def verify_api_key(authorization: str = Header(None), db: Session = Depends(get_
         )
 
     # Verificar expiração
-    if user.api_key_expires_at and utc_now() > user.api_key_expires_at:
+    expires_at = device.api_key_expires_at if device else user.api_key_expires_at
+    if expires_at and utc_now() > expires_at:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED, detail="API key expirada"
         )
 
-    return user
+    if device and not device.is_active:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN, detail="Dispositivo desativado"
+        )
+
+    return user, device
 
 
 @router.post("/leitura", response_model=LeituraResponse)
 def receber_leitura(
     leitura: LeituraCreate,
     db: Session = Depends(get_db),
-    current_user: User = Depends(verify_api_key),
+    identity: tuple[User, Device | None] = Depends(verify_api_key),
 ):
     """
     Receber leitura do sensor ESP32.
@@ -66,13 +79,36 @@ def receber_leitura(
       -d '{"fluxo_litros": 2.4, "consumo_total": 150.2}'
     ```
     """
-    # Criar nova leitura
+    current_user, device = identity
+    if leitura.event_id and device:
+        existente = (
+            db.query(Leitura)
+            .filter(
+                Leitura.device_id == device.id,
+                Leitura.event_id == leitura.event_id,
+            )
+            .first()
+        )
+        if existente:
+            return existente
+
+    measured_at = leitura.measured_at or utc_now()
+    # Evita que um relógio incorreto no ESP grave datas absurdamente futuras.
+    if measured_at > utc_now() + timedelta(minutes=5):
+        raise HTTPException(status_code=422, detail="Horário da medição inválido")
+
     nova_leitura = Leitura(
         user_id=current_user.id,
+        device_id=device.id if device else None,
+        event_id=leitura.event_id,
         fluxo_litros=leitura.fluxo_litros,
         consumo_total=leitura.consumo_total,
-        timestamp=utc_now(),
+        timestamp=measured_at,
+        received_at=utc_now(),
     )
+
+    if device:
+        device.last_seen_at = utc_now()
 
     db.add(nova_leitura)
     db.commit()
@@ -84,7 +120,7 @@ def receber_leitura(
 @router.get("/leituras", response_model=list[LeituraResponse])
 def listar_leituras(
     db: Session = Depends(get_db),
-    current_user: User = Depends(verify_api_key),
+    identity: tuple[User, Device | None] = Depends(verify_api_key),
     limit: int = Query(default=100, ge=1, le=500),
 ):
     """
@@ -93,6 +129,7 @@ def listar_leituras(
     Query params:
     - limit: Número máximo de registros (default: 100)
     """
+    current_user, _ = identity
     leituras = (
         db.query(Leitura)
         .filter(Leitura.user_id == current_user.id)

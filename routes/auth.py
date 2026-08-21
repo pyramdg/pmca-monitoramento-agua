@@ -4,7 +4,7 @@ from datetime import timedelta
 import secrets
 
 from database import get_db
-from models import User
+from models import Device, User
 from schemas import (
     UserCreate,
     UserResponse,
@@ -190,14 +190,39 @@ def generate_api_key(
 
     # Gerar API key para dispositivo
     api_key = secrets.token_urlsafe(32)
-    expires_at = utc_now() + timedelta(seconds=API_KEY_EXPIRATION)
+    expires_at = (
+        utc_now() + timedelta(seconds=API_KEY_EXPIRATION)
+        if API_KEY_EXPIRATION > 0
+        else None
+    )
 
-    user.api_key = hash_api_key(api_key)
-    user.api_key_expires_at = expires_at
+    device = (
+        db.query(Device)
+        .filter(Device.user_id == user.id, Device.name == "Meu medidor")
+        .first()
+    )
+    if device:
+        device.api_key_hash = hash_api_key(api_key)
+        device.api_key_expires_at = expires_at
+        device.is_active = True
+    else:
+        device = Device(
+            user_id=user.id,
+            name="Meu medidor",
+            api_key_hash=hash_api_key(api_key),
+            api_key_expires_at=expires_at,
+        )
+        db.add(device)
 
     db.commit()
+    db.refresh(device)
 
-    return {"api_key": api_key, "expires_at": expires_at}
+    return {
+        "api_key": api_key,
+        "device_id": device.id,
+        "device_name": device.name,
+        "expires_at": expires_at,
+    }
 
 
 @router.get("/me", response_model=UserResponse)

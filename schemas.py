@@ -37,7 +37,8 @@ class LeituraBase(BaseModel):
 
 
 class LeituraCreate(LeituraBase):
-    pass
+    event_id: Optional[str] = Field(default=None, min_length=8, max_length=96)
+    measured_at: Optional[datetime] = None
 
 
 class LeituraResponse(LeituraBase):
@@ -45,6 +46,8 @@ class LeituraResponse(LeituraBase):
 
     id: int
     user_id: int
+    device_id: Optional[int] = None
+    event_id: Optional[str] = None
     timestamp: datetime
 
 
@@ -73,4 +76,6 @@ class RefreshTokenRequest(BaseModel):
 
 class APIKeyResponse(BaseModel):
     api_key: str
+    device_id: int
+    device_name: str
     expires_at: Optional[datetime] = None

@@ -6,7 +6,8 @@ from contextlib import asynccontextmanager
 from pathlib import Path
 
 from config import ALLOWED_ORIGINS, DEBUG
-from database import init_db
+from database import engine, init_db
+from sqlalchemy import text
 from routes import auth, sensor, dashboard
 
 # Inicializar banco de dados
@@ -52,9 +53,15 @@ app.mount("/static", StaticFiles(directory=WEB_DIR), name="static")
 @app.get("/health")
 def health_check():
     """Verificar se a API está online"""
-    return JSONResponse(
-        {"status": "ok", "message": "PMCA está online"}, status_code=200
-    )
+    try:
+        with engine.connect() as connection:
+            connection.execute(text("SELECT 1"))
+    except Exception:
+        return JSONResponse(
+            {"status": "error", "message": "Banco de dados indisponível"},
+            status_code=503,
+        )
+    return JSONResponse({"status": "ok", "message": "PMCA está online"})
 
 
 # Root

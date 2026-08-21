@@ -5,7 +5,7 @@ Testes unitários para PMCA API - com fixtures centralizadas no conftest.py
 from datetime import timedelta
 
 from conftest import client
-from models import Leitura
+from models import Device, Leitura
 from auth_utils import create_refresh_token, hash_api_key, utc_now
 
 
@@ -104,13 +104,16 @@ class TestAuth:
         response = client.post("/auth/me", headers=headers)
         assert response.status_code == 401
 
-    def test_generate_api_key(self, test_user, auth_headers):
+    def test_generate_api_key(self, test_user, auth_headers, db_session):
         """✓ Gerar API key para dispositivo"""
         response = client.post("/auth/api-key", headers=auth_headers)
         assert response.status_code == 200
         data = response.json()
         assert "api_key" in data
         assert "expires_at" in data
+        assert data["expires_at"] is None
+        assert data["device_name"] == "Meu medidor"
+        assert db_session.query(Device).count() == 1
 
     def test_refresh_token(self, test_user):
         refresh_token = create_refresh_token(test_user.id)
@@ -213,6 +216,34 @@ class TestSensorAPI:
             headers={"Authorization": f"Bearer {api_key}"},
         )
         assert response.status_code == 422
+
+    def test_device_key_retries_same_event_without_duplicate(
+        self, test_user, db_session
+    ):
+        api_key = "device-key-for-offline-retry"
+        device = Device(
+            user_id=test_user.id,
+            name="Medidor cozinha",
+            api_key_hash=hash_api_key(api_key),
+        )
+        db_session.add(device)
+        db_session.commit()
+
+        payload = {
+            "event_id": "AABBCCDDEEFF-1-42",
+            "fluxo_litros": 1.75,
+            "consumo_total": 20.5,
+        }
+        headers = {"Authorization": f"Bearer {api_key}"}
+        first = client.post("/api/leitura", json=payload, headers=headers)
+        retry = client.post("/api/leitura", json=payload, headers=headers)
+
+        assert first.status_code == 200
+        assert retry.status_code == 200
+        assert first.json()["id"] == retry.json()["id"]
+        assert db_session.query(Leitura).count() == 1
+        db_session.refresh(device)
+        assert device.last_seen_at is not None
 
 
 class TestDashboard:

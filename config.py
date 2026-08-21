@@ -12,6 +12,11 @@ DEBUG = ENV == "development"
 DATABASE_URL = os.getenv(
     "DATABASE_URL", "sqlite:///./pmca.db"  # SQLite local para desenvolvimento
 )
+# Railway e alguns provedores ainda entregam o prefixo antigo do PostgreSQL.
+if DATABASE_URL.startswith("postgres://"):
+    DATABASE_URL = DATABASE_URL.replace("postgres://", "postgresql+psycopg://", 1)
+elif DATABASE_URL.startswith("postgresql://"):
+    DATABASE_URL = DATABASE_URL.replace("postgresql://", "postgresql+psycopg://", 1)
 
 # Segurança
 SECRET_KEY = os.getenv("SECRET_KEY")
@@ -25,7 +30,8 @@ if not SECRET_KEY:
     SECRET_KEY = secrets.token_urlsafe(32)
 
 # API
-API_KEY_EXPIRATION = 30 * 24 * 60 * 60  # 30 dias em segundos
+# A chave do aparelho permanece válida até ser trocada ou desativada.
+API_KEY_EXPIRATION = int(os.getenv("API_KEY_EXPIRATION", "0"))
 
 # CORS
 ALLOWED_ORIGINS = os.getenv(

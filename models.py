@@ -6,6 +6,7 @@ from sqlalchemy import (
     DateTime,
     ForeignKey,
     Boolean,
+    UniqueConstraint,
 )
 from sqlalchemy.orm import relationship
 from auth_utils import utc_now
@@ -29,9 +30,30 @@ class User(Base):
     leituras = relationship(
         "Leitura", back_populates="user", cascade="all, delete-orphan"
     )
+    devices = relationship(
+        "Device", back_populates="user", cascade="all, delete-orphan"
+    )
 
     def __repr__(self):
         return f"<User(email='{self.email}')>"
+
+
+class Device(Base):
+    """Aparelho ESP32 autorizado a enviar leituras."""
+
+    __tablename__ = "devices"
+
+    id = Column(Integer, primary_key=True, index=True)
+    user_id = Column(Integer, ForeignKey("users.id"), nullable=False, index=True)
+    name = Column(String(80), nullable=False, default="Meu medidor")
+    api_key_hash = Column(String(64), unique=True, index=True, nullable=False)
+    api_key_expires_at = Column(DateTime, nullable=True)
+    is_active = Column(Boolean, default=True, nullable=False)
+    last_seen_at = Column(DateTime, nullable=True)
+    created_at = Column(DateTime, default=utc_now, nullable=False)
+
+    user = relationship("User", back_populates="devices")
+    leituras = relationship("Leitura", back_populates="device")
 
 
 class Leitura(Base):
@@ -41,12 +63,20 @@ class Leitura(Base):
 
     id = Column(Integer, primary_key=True, index=True)
     user_id = Column(Integer, ForeignKey("users.id"), nullable=False)
+    device_id = Column(Integer, ForeignKey("devices.id"), nullable=True, index=True)
+    event_id = Column(String(96), nullable=True)
     fluxo_litros = Column(Float, nullable=False)  # Vazão instantânea em L/min
     consumo_total = Column(Float, nullable=False)  # Consumo acumulado em L
-    timestamp = Column(DateTime, default=utc_now, index=True)
+    timestamp = Column(DateTime, default=utc_now, index=True)  # horário da medição
+    received_at = Column(DateTime, default=utc_now, nullable=False)
 
     # Relacionamento
     user = relationship("User", back_populates="leituras")
+    device = relationship("Device", back_populates="leituras")
+
+    __table_args__ = (
+        UniqueConstraint("device_id", "event_id", name="uq_device_event"),
+    )
 
     def __repr__(self):
         return (
