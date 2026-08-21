@@ -66,7 +66,8 @@ constexpr uint8_t CONFIG_PIN = 0;  // Botão BOOT da maioria das placas ESP32.
 constexpr float PULSOS_POR_LITRO = PMCA_PULSOS_POR_LITRO;
 constexpr uint32_t FILTRO_PULSO_US = 1000;
 constexpr uint32_t CALCULO_MS = 1000;
-constexpr uint32_t ENVIO_MS = 10000;
+constexpr uint32_t REGISTRO_LEITURA_MS = 10000;
+constexpr uint32_t PROCESSAR_FILA_MS = 1000;
 constexpr uint32_t STATUS_MS = 5000;
 constexpr uint32_t RECONEXAO_MS = 10000;
 constexpr uint32_t LIMITE_CONEXAO_MS = 45000;
@@ -100,7 +101,8 @@ float totalSalvo = 0.0F;
 uint32_t pulsosUltimoCalculo = 0;
 
 uint32_t ultimoCalculoMs = 0;
-uint32_t ultimoEnvioMs = 0;
+uint32_t ultimoRegistroLeituraMs = 0;
+uint32_t ultimaTentativaFilaMs = 0;
 uint32_t ultimoStatusMs = 0;
 uint32_t ultimaReconexaoMs = 0;
 uint32_t inicioFalhaWifiMs = 0;
@@ -545,16 +547,17 @@ bool enviarArquivoDaFila(const String &caminho) {
   return false;
 }
 
-void enviarFila() {
+void enviarProximoDaFila() {
   if (!armazenamentoDisponivel || WiFi.status() != WL_CONNECTED || portalAtivo) {
     return;
   }
 
-  for (uint8_t tentativa = 0; tentativa < 3; tentativa++) {
-    const String primeiro = primeiroArquivoFila();
-    if (primeiro.isEmpty() || !enviarArquivoDaFila(primeiro) || portalAtivo) {
-      break;
-    }
+  // Um único POST por passagem evita bloquear medição, status e reconexão por
+  // três requisições HTTPS consecutivas. Enquanto houver atraso, esta função é
+  // chamada novamente a cada segundo e a fila é drenada continuamente.
+  const String primeiro = primeiroArquivoFila();
+  if (!primeiro.isEmpty()) {
+    enviarArquivoDaFila(primeiro);
   }
 }
 
@@ -638,7 +641,8 @@ void setup() {
 
   const uint32_t agora = millis();
   ultimoCalculoMs = agora;
-  ultimoEnvioMs = agora;
+  ultimoRegistroLeituraMs = agora;
+  ultimaTentativaFilaMs = agora;
   ultimoStatusMs = agora;
   ultimoSalvamentoMs = agora;
 
@@ -680,10 +684,15 @@ void loop() {
   }
 
   const uint32_t agora = millis();
-  if (agora - ultimoEnvioMs >= Config::ENVIO_MS) {
+  if (agora - ultimoRegistroLeituraMs >= Config::REGISTRO_LEITURA_MS) {
     guardarLeituraNaFila();
-    enviarFila();
-    ultimoEnvioMs = agora;
+    ultimoRegistroLeituraMs = agora;
+  }
+
+  if (agora - ultimaTentativaFilaMs >= Config::PROCESSAR_FILA_MS) {
+    enviarProximoDaFila();
+    // Use o horário após o POST, pois a conexão HTTPS pode levar alguns segundos.
+    ultimaTentativaFilaMs = millis();
   }
 
   delay(5);

@@ -100,10 +100,16 @@ function drawChart(readings) {
   canvas.width = rect.width * ratio; canvas.height = rect.height * ratio;
   const ctx = canvas.getContext("2d"); ctx.scale(ratio, ratio);
   const width = rect.width, height = rect.height, pad = {t: 20, r: 16, b: 36, l: 48};
-  const values = readings.map((item) => item.consumo_total); const min = Math.min(...values); const max = Math.max(...values); const range = Math.max(max - min, 1);
+  const values = readings.map((item) => Math.max(0, Number(item.consumo_total) || 0));
+  const maxValue = Math.max(...values);
+  // Consumo nunca é negativo. Quando todas as leituras são zero, use uma escala
+  // visual de 0 a 1 L em vez de produzir marcadores -0,3, -0,5 e -1,0 L.
+  const chartMin = 0;
+  const chartMax = maxValue > 0 ? maxValue * 1.1 : 1;
+  const range = chartMax - chartMin;
   ctx.clearRect(0, 0, width, height); ctx.font = "12px system-ui"; ctx.fillStyle = "#82939d"; ctx.strokeStyle = "#e5edef"; ctx.lineWidth = 1;
-  for (let i = 0; i <= 4; i++) { const y = pad.t + ((height - pad.t - pad.b) * i / 4); ctx.beginPath(); ctx.moveTo(pad.l, y); ctx.lineTo(width - pad.r, y); ctx.stroke(); const value = max - range * i / 4; ctx.fillText(`${value.toFixed(1)} L`, 2, y + 4); }
-  const point = (value, index) => ({x: pad.l + (width-pad.l-pad.r) * index / Math.max(readings.length-1,1), y: pad.t + (height-pad.t-pad.b) * (1-(value-min)/range)});
+  for (let i = 0; i <= 4; i++) { const y = pad.t + ((height - pad.t - pad.b) * i / 4); ctx.beginPath(); ctx.moveTo(pad.l, y); ctx.lineTo(width - pad.r, y); ctx.stroke(); const value = chartMax - range * i / 4; ctx.fillText(`${value.toFixed(1)} L`, 2, y + 4); }
+  const point = (value, index) => ({x: pad.l + (width-pad.l-pad.r) * index / Math.max(readings.length-1,1), y: pad.t + (height-pad.t-pad.b) * (1-(value-chartMin)/range)});
   const gradient = ctx.createLinearGradient(0,pad.t,0,height-pad.b); gradient.addColorStop(0,"rgba(57,198,203,.32)"); gradient.addColorStop(1,"rgba(57,198,203,0)");
   ctx.beginPath(); values.forEach((v,i) => { const p=point(v,i); i ? ctx.lineTo(p.x,p.y) : ctx.moveTo(p.x,p.y); }); ctx.lineTo(width-pad.r,height-pad.b); ctx.lineTo(pad.l,height-pad.b); ctx.closePath(); ctx.fillStyle=gradient; ctx.fill();
   ctx.beginPath(); values.forEach((v,i) => { const p=point(v,i); i ? ctx.lineTo(p.x,p.y) : ctx.moveTo(p.x,p.y); }); ctx.strokeStyle="#0b819b"; ctx.lineWidth=3; ctx.lineJoin="round"; ctx.stroke();
