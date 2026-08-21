@@ -5,7 +5,7 @@ sqlalchemy==2.0.52
 pydantic[email]==2.13.4
 PyJWT==2.13.0
 passlib==1.7.4
-python-dotenv==1.2.2
+python-dotenv==1.2.3
 
 # Testes e qualidade
 httpx==0.28.1
