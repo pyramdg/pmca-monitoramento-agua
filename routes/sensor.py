@@ -90,6 +90,10 @@ def receber_leitura(
             .first()
         )
         if existente:
+            # Uma repetição também prova que o aparelho está ligado e conseguiu
+            # alcançar a API, mesmo que a medição já tenha sido persistida.
+            device.last_seen_at = utc_now()
+            db.commit()
             return existente
 
     # O ESP32 envia ISO 8601 com sufixo Z (timezone-aware), enquanto as colunas

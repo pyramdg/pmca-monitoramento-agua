@@ -284,6 +284,9 @@ class TestDashboard:
         """✓ Resumo com nenhuma leitura"""
         response = client.get("/dashboard/resumo", headers=auth_headers)
         assert response.status_code == 200
+        data = response.json()
+        assert data["dispositivo"]["status"] == "nao_configurado"
+        assert data["leituras_hoje"] == 0
 
     def test_resumo_with_readings(self, test_user, db_session, auth_headers):
         """✓ Resumo com leituras"""
@@ -300,6 +303,31 @@ class TestDashboard:
 
         response = client.get("/dashboard/resumo", headers=auth_headers)
         assert response.status_code == 200
+        data = response.json()
+        assert data["dispositivo"]["status"] == "online"
+        assert data["leituras_hoje"] == 3
+        assert data["dispositivo"]["situacao_agua"] == "fluxo_detectado"
+
+    def test_resumo_marks_device_offline_after_timeout(
+        self, test_user, db_session, auth_headers
+    ):
+        device = Device(
+            user_id=test_user.id,
+            name="Medidor externo",
+            api_key_hash=hash_api_key("offline-device-key"),
+            last_seen_at=utc_now() - timedelta(seconds=46),
+        )
+        db_session.add(device)
+        db_session.commit()
+
+        response = client.get("/dashboard/resumo", headers=auth_headers)
+
+        assert response.status_code == 200
+        data = response.json()
+        assert data["dispositivo"]["nome"] == "Medidor externo"
+        assert data["dispositivo"]["status"] == "offline"
+        assert data["dispositivo"]["segundos_desde_comunicacao"] >= 46
+        assert data["dispositivo"]["situacao_agua"] == "sem_dados"
 
     def test_historico(self, test_user, db_session, auth_headers):
         """✓ Obter histórico de leituras"""
@@ -324,6 +352,8 @@ def test_dashboard_web_is_available():
     response = client.get("/dashboard")
     assert response.status_code == 200
     assert "Cada litro conta" in response.text
+    assert 'id="device-status"' in response.text
+    assert 'id="device-last-seen"' in response.text
 
 
 if __name__ == "__main__":

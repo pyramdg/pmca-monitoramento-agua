@@ -39,7 +39,7 @@
     <header class="topbar">
       <a class="logo" href="/dashboard"><span>PM</span><strong>PMCA</strong></a>
       <div class="top-actions">
-        <div class="live"><i></i> Atualização automática</div>
+        <div class="live"><i></i> Atualização a cada 15 s</div>
         <button id="logout" class="ghost" type="button">Sair</button>
       </div>
     </header>
@@ -63,12 +63,27 @@
         </article>
 
         <aside class="panel device-panel">
-          <p class="eyebrow">Dispositivo</p><h2>Conectar ESP32</h2>
+          <div class="device-heading">
+            <div><p class="eyebrow">Dispositivo</p><h2 id="device-name">Meu medidor</h2></div>
+            <span id="device-status" class="device-status waiting"><i></i><span>Aguardando</span></span>
+          </div>
+          <p id="device-status-message" class="device-status-message">Verificando a comunicação com o ESP32...</p>
+
+          <div class="device-facts" aria-label="Informações do dispositivo">
+            <div><span>Última comunicação</span><strong id="device-last-seen">Nunca</strong></div>
+            <div><span>Situação da água</span><strong id="water-state">Sem dados</strong></div>
+            <div><span>Leituras hoje</span><strong id="today-readings">0</strong></div>
+          </div>
+
+          <div id="device-alert" class="device-alert hidden" role="status"></div>
+          <div class="device-setup">
+          <h3>Configuração do ESP32</h3>
           <p>Gere uma chave para autorizar o envio das leituras. Uma nova chave desativa a anterior.</p>
           <button id="generate-key" class="secondary full" type="button">Gerar API key</button>
           <div id="key-box" class="key-box hidden"><span>Copie agora — ela não será exibida novamente.</span><code id="api-key"></code><button id="copy-key" class="ghost full" type="button">Copiar chave</button></div>
           <details id="test-reading" class="test-reading hidden"><summary>Enviar leitura de teste</summary><form id="reading-form"><label>Vazão (L/min)<input id="test-flow" type="number" min="0" step="0.01" value="1.25" required></label><label>Consumo total (L)<input id="test-total" type="number" min="0" step="0.01" value="10.5" required></label><button class="primary full" type="submit">Enviar leitura</button></form></details>
           <p id="device-message" class="device-message" role="status"></p>
+          </div>
         </aside>
       </section>
     </div>

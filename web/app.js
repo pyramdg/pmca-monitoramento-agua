@@ -11,6 +11,71 @@ const authView = $("#auth-view");
 const dashboardView = $("#dashboard-view");
 const formatNumber = (value) => Number(value || 0).toLocaleString("pt-BR", {minimumFractionDigits: 2, maximumFractionDigits: 2});
 
+function parseUtc(value) {
+  if (!value) return null;
+  const text = String(value);
+  return new Date(/(?:Z|[+-]\d{2}:\d{2})$/.test(text) ? text : `${text}Z`);
+}
+
+function formatElapsed(seconds) {
+  if (seconds == null) return "Nunca";
+  if (seconds < 10) return "Agora";
+  if (seconds < 60) return `Há ${seconds} s`;
+  const minutes = Math.floor(seconds / 60);
+  if (minutes < 60) return `Há ${minutes} min`;
+  const hours = Math.floor(minutes / 60);
+  if (hours < 24) return `Há ${hours} h`;
+  return `Há ${Math.floor(hours / 24)} d`;
+}
+
+function renderDeviceStatus(summary) {
+  const device = summary.dispositivo || {};
+  const status = device.status || "aguardando";
+  const labels = {
+    online: "Online",
+    offline: "Offline",
+    aguardando: "Aguardando",
+    nao_configurado: "Não configurado",
+  };
+  const messages = {
+    online: "O ESP32 está ligado e enviando dados normalmente.",
+    offline: `Sem contato ${formatElapsed(device.segundos_desde_comunicacao).toLowerCase()}. Confira a energia e o Wi-Fi do local.`,
+    aguardando: "A chave existe, mas o ESP32 ainda não enviou a primeira leitura.",
+    nao_configurado: "Gere uma API key e configure o ESP32 para começar.",
+  };
+  const waterLabels = {
+    fluxo_detectado: "Água passando",
+    sem_fluxo: "Sem fluxo agora",
+    desconhecido: "Indisponível",
+    sem_dados: "Sem dados",
+  };
+
+  const badge = $("#device-status");
+  badge.className = `device-status ${status.replace("nao_configurado", "not-configured")}`;
+  badge.querySelector("span").textContent = labels[status] || "Aguardando";
+  $("#device-name").textContent = device.nome || "Meu medidor";
+  $("#device-status-message").textContent = messages[status] || messages.aguardando;
+  $("#today-readings").textContent = Number(summary.leituras_hoje || 0).toLocaleString("pt-BR");
+  $("#water-state").textContent = waterLabels[device.situacao_agua] || "Sem dados";
+
+  const lastSeen = $("#device-last-seen");
+  lastSeen.textContent = formatElapsed(device.segundos_desde_comunicacao);
+  const lastSeenDate = parseUtc(device.ultima_comunicacao);
+  lastSeen.title = lastSeenDate ? lastSeenDate.toLocaleString("pt-BR") : "Nenhuma comunicação recebida";
+
+  const alert = $("#device-alert");
+  if (status === "offline") {
+    alert.textContent = "O painel continua mostrando o histórico salvo. Novas leituras aparecerão quando o aparelho reconectar.";
+    alert.className = "device-alert warning";
+  } else if (status === "aguardando" || status === "nao_configurado") {
+    alert.textContent = status === "aguardando" ? "Finalize a configuração do Wi-Fi e da API key no portal do ESP32." : "O dispositivo ainda não está vinculado a esta conta.";
+    alert.className = "device-alert info";
+  } else {
+    alert.className = "device-alert hidden";
+    alert.textContent = "";
+  }
+}
+
 async function request(path, options = {}, allowRefresh = true) {
   const headers = {"Content-Type": "application/json", ...(options.headers || {})};
   if (state.accessToken && !headers.Authorization) headers.Authorization = `Bearer ${state.accessToken}`;
@@ -84,8 +149,9 @@ async function loadDashboard() {
     $("#total").textContent = `${formatNumber(summary.consumo_total)} L`;
     $("#flow").textContent = `${formatNumber(summary.ultimo_fluxo)} L/min`;
     $("#average").textContent = `${formatNumber(summary.media_hoje)} L/min`;
-    $("#last-update").textContent = summary.timestamp_ultima ? `Atualizado em ${new Date(summary.timestamp_ultima + "Z").toLocaleString("pt-BR")}` : "Sem leituras";
+    $("#last-update").textContent = summary.timestamp_ultima ? `Atualizado em ${parseUtc(summary.timestamp_ultima).toLocaleString("pt-BR")}` : "Sem leituras";
     $("#reading-count").textContent = `${readings.length} ${readings.length === 1 ? "leitura" : "leituras"}`;
+    renderDeviceStatus(summary);
     drawChart(readings);
   } catch (err) {
     if (err.message.includes("Token") || err.message.includes("autentic")) { clearSession(); showAuth(); }
@@ -101,6 +167,9 @@ function drawChart(readings) {
   const ctx = canvas.getContext("2d"); ctx.scale(ratio, ratio);
   const width = rect.width, height = rect.height, pad = {t: 20, r: 16, b: 36, l: 48};
   const values = readings.map((item) => Math.max(0, Number(item.consumo_total) || 0));
+  // Uma única leitura deve formar uma linha estável, não um triângulo até o
+  // rodapé do gráfico. Repita apenas o ponto visual, sem alterar os dados.
+  const plotValues = values.length === 1 ? [values[0], values[0]] : values;
   const maxValue = Math.max(...values);
   // Consumo nunca é negativo. Quando todas as leituras são zero, use uma escala
   // visual de 0 a 1 L em vez de produzir marcadores -0,3, -0,5 e -1,0 L.
@@ -109,18 +178,18 @@ function drawChart(readings) {
   const range = chartMax - chartMin;
   ctx.clearRect(0, 0, width, height); ctx.font = "12px system-ui"; ctx.fillStyle = "#82939d"; ctx.strokeStyle = "#e5edef"; ctx.lineWidth = 1;
   for (let i = 0; i <= 4; i++) { const y = pad.t + ((height - pad.t - pad.b) * i / 4); ctx.beginPath(); ctx.moveTo(pad.l, y); ctx.lineTo(width - pad.r, y); ctx.stroke(); const value = chartMax - range * i / 4; ctx.fillText(`${value.toFixed(1)} L`, 2, y + 4); }
-  const point = (value, index) => ({x: pad.l + (width-pad.l-pad.r) * index / Math.max(readings.length-1,1), y: pad.t + (height-pad.t-pad.b) * (1-(value-chartMin)/range)});
+  const point = (value, index) => ({x: pad.l + (width-pad.l-pad.r) * index / Math.max(plotValues.length-1,1), y: pad.t + (height-pad.t-pad.b) * (1-(value-chartMin)/range)});
   const gradient = ctx.createLinearGradient(0,pad.t,0,height-pad.b); gradient.addColorStop(0,"rgba(57,198,203,.32)"); gradient.addColorStop(1,"rgba(57,198,203,0)");
-  ctx.beginPath(); values.forEach((v,i) => { const p=point(v,i); i ? ctx.lineTo(p.x,p.y) : ctx.moveTo(p.x,p.y); }); ctx.lineTo(width-pad.r,height-pad.b); ctx.lineTo(pad.l,height-pad.b); ctx.closePath(); ctx.fillStyle=gradient; ctx.fill();
-  ctx.beginPath(); values.forEach((v,i) => { const p=point(v,i); i ? ctx.lineTo(p.x,p.y) : ctx.moveTo(p.x,p.y); }); ctx.strokeStyle="#0b819b"; ctx.lineWidth=3; ctx.lineJoin="round"; ctx.stroke();
-  const first = new Date(readings[0].timestamp + "Z"); const last = new Date(readings[readings.length-1].timestamp + "Z"); ctx.fillStyle="#82939d"; ctx.fillText(first.toLocaleDateString("pt-BR"),pad.l,height-9); const label=last.toLocaleDateString("pt-BR"); ctx.fillText(label,width-pad.r-ctx.measureText(label).width,height-9);
+  ctx.beginPath(); plotValues.forEach((v,i) => { const p=point(v,i); i ? ctx.lineTo(p.x,p.y) : ctx.moveTo(p.x,p.y); }); ctx.lineTo(width-pad.r,height-pad.b); ctx.lineTo(pad.l,height-pad.b); ctx.closePath(); ctx.fillStyle=gradient; ctx.fill();
+  ctx.beginPath(); plotValues.forEach((v,i) => { const p=point(v,i); i ? ctx.lineTo(p.x,p.y) : ctx.moveTo(p.x,p.y); }); ctx.strokeStyle="#0b819b"; ctx.lineWidth=3; ctx.lineJoin="round"; ctx.stroke();
+  const first = parseUtc(readings[0].timestamp); const last = parseUtc(readings[readings.length-1].timestamp); ctx.fillStyle="#82939d"; ctx.fillText(first.toLocaleDateString("pt-BR"),pad.l,height-9); const label=last.toLocaleDateString("pt-BR"); ctx.fillText(label,width-pad.r-ctx.measureText(label).width,height-9);
 }
 
 $("#refresh").addEventListener("click", loadDashboard);
 $("#logout").addEventListener("click", () => { clearSession(); showAuth(); });
 $("#generate-key").addEventListener("click", async () => {
   const message = $("#device-message"); message.textContent = ""; message.classList.remove("error");
-  try { const data = await request("/auth/api-key", {method:"POST"}); state.apiKey=data.api_key; $("#api-key").textContent=data.api_key; $("#key-box").classList.remove("hidden"); $("#test-reading").classList.remove("hidden"); message.textContent="Chave criada com sucesso."; }
+  try { const data = await request("/auth/api-key", {method:"POST"}); state.apiKey=data.api_key; $("#api-key").textContent=data.api_key; $("#key-box").classList.remove("hidden"); $("#test-reading").classList.remove("hidden"); message.textContent="Chave criada com sucesso."; await loadDashboard(); }
   catch(err){ message.textContent=err.message; message.classList.add("error"); }
 });
 $("#copy-key").addEventListener("click", async () => { await navigator.clipboard.writeText(state.apiKey || ""); $("#device-message").textContent="Chave copiada."; });

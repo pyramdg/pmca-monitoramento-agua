@@ -6,8 +6,9 @@ from sqlalchemy import func
 from sqlalchemy.orm import Session
 
 from auth_utils import extract_user_id_from_token, utc_now
+from config import DEVICE_ONLINE_TIMEOUT_SECONDS
 from database import get_db
-from models import User, Leitura
+from models import Device, User, Leitura
 from schemas import LeituraResponse
 
 router = APIRouter(prefix="/dashboard", tags=["dashboard"])
@@ -67,14 +68,6 @@ def resumo_consumo(
         .first()
     )
 
-    if not ultima_leitura:
-        return {
-            "consumo_total": 0,
-            "ultimo_fluxo": 0,
-            "media_hoje": 0,
-            "timestamp_ultima": None,
-        }
-
     # Leituras de hoje
     hoje = utc_now().date()
     leituras_hoje = (
@@ -92,11 +85,59 @@ def resumo_consumo(
         else 0
     )
 
+    device = (
+        db.query(Device)
+        .filter(Device.user_id == current_user.id, Device.is_active.is_(True))
+        .order_by(Device.last_seen_at.desc(), Device.created_at.desc())
+        .first()
+    )
+
+    # Contas antigas podem ter leituras sem um registro em devices. Nesse caso,
+    # a recepção mais recente ainda serve como indicação de conectividade.
+    last_contact = (
+        device.last_seen_at
+        if device
+        else (ultima_leitura.received_at if ultima_leitura else None)
+    )
+    seconds_since_contact = (
+        max(0, int((utc_now() - last_contact).total_seconds()))
+        if last_contact
+        else None
+    )
+
+    if not device and not ultima_leitura:
+        device_status = "nao_configurado"
+    elif last_contact is None:
+        device_status = "aguardando"
+    elif seconds_since_contact <= DEVICE_ONLINE_TIMEOUT_SECONDS:
+        device_status = "online"
+    else:
+        device_status = "offline"
+
+    latest_flow = ultima_leitura.fluxo_litros if ultima_leitura else 0
+    if not ultima_leitura:
+        water_status = "sem_dados"
+    elif device_status != "online":
+        water_status = "desconhecido"
+    elif latest_flow > 0.01:
+        water_status = "fluxo_detectado"
+    else:
+        water_status = "sem_fluxo"
+
     return {
-        "consumo_total": ultima_leitura.consumo_total,
-        "ultimo_fluxo": ultima_leitura.fluxo_litros,
+        "consumo_total": ultima_leitura.consumo_total if ultima_leitura else 0,
+        "ultimo_fluxo": latest_flow,
         "media_hoje": round(media_hoje, 2),
-        "timestamp_ultima": ultima_leitura.timestamp,
+        "timestamp_ultima": ultima_leitura.timestamp if ultima_leitura else None,
+        "leituras_hoje": len(leituras_hoje),
+        "dispositivo": {
+            "nome": device.name if device else "Meu medidor",
+            "status": device_status,
+            "ultima_comunicacao": last_contact,
+            "segundos_desde_comunicacao": seconds_since_contact,
+            "limite_online_segundos": DEVICE_ONLINE_TIMEOUT_SECONDS,
+            "situacao_agua": water_status,
+        },
     }
 
 

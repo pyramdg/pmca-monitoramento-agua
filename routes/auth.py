@@ -205,6 +205,9 @@ def generate_api_key(
         device.api_key_hash = hash_api_key(api_key)
         device.api_key_expires_at = expires_at
         device.is_active = True
+        # A chave antiga deixou de representar uma conexão válida. O painel
+        # volta a "aguardando" até o ESP32 usar a chave nova pela primeira vez.
+        device.last_seen_at = None
     else:
         device = Device(
             user_id=user.id,

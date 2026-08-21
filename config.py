@@ -33,6 +33,13 @@ if not SECRET_KEY:
 # A chave do aparelho permanece válida até ser trocada ou desativada.
 API_KEY_EXPIRATION = int(os.getenv("API_KEY_EXPIRATION", "0"))
 
+# O firmware registra uma leitura a cada 10 segundos. Quatro ciclos e meio sem
+# contato são suficientes para sinalizar que o aparelho provavelmente perdeu
+# energia ou internet, sem piscar entre online/offline por um atraso pontual.
+DEVICE_ONLINE_TIMEOUT_SECONDS = max(
+    20, int(os.getenv("DEVICE_ONLINE_TIMEOUT_SECONDS", "45"))
+)
+
 # CORS
 ALLOWED_ORIGINS = os.getenv(
     "ALLOWED_ORIGINS", "http://localhost:3000,http://localhost:5000"
