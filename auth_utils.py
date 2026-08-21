@@ -56,6 +56,13 @@ def utc_now() -> datetime:
     return datetime.now(timezone.utc).replace(tzinfo=None)
 
 
+def utc_naive(value: datetime) -> datetime:
+    """Normaliza datas externas para UTC sem timezone, como usado pelo banco."""
+    if value.tzinfo is None:
+        return value
+    return value.astimezone(timezone.utc).replace(tzinfo=None)
+
+
 def hash_api_key(api_key: str) -> str:
     """Gera o valor persistido da API key; a chave original só é exibida uma vez."""
     return hashlib.sha256(api_key.encode()).hexdigest()

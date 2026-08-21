@@ -6,7 +6,7 @@ from sqlalchemy.orm import Session
 from database import get_db
 from models import Device, User, Leitura
 from schemas import LeituraCreate, LeituraResponse
-from auth_utils import hash_api_key, utc_now
+from auth_utils import hash_api_key, utc_naive, utc_now
 
 router = APIRouter(prefix="/api", tags=["sensor"])
 
@@ -92,7 +92,10 @@ def receber_leitura(
         if existente:
             return existente
 
-    measured_at = leitura.measured_at or utc_now()
+    # O ESP32 envia ISO 8601 com sufixo Z (timezone-aware), enquanto as colunas
+    # atuais do banco armazenam UTC sem timezone. Normalize antes de comparar e
+    # persistir para que ambos os formatos sejam aceitos com segurança.
+    measured_at = utc_naive(leitura.measured_at) if leitura.measured_at else utc_now()
     # Evita que um relógio incorreto no ESP grave datas absurdamente futuras.
     if measured_at > utc_now() + timedelta(minutes=5):
         raise HTTPException(status_code=422, detail="Horário da medição inválido")

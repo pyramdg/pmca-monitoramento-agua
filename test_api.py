@@ -2,7 +2,7 @@
 Testes unitários para PMCA API - com fixtures centralizadas no conftest.py
 """
 
-from datetime import timedelta
+from datetime import timedelta, timezone
 
 from conftest import client
 from models import Device, Leitura
@@ -148,6 +148,37 @@ class TestSensorAPI:
             headers=headers,
         )
         assert response.status_code == 200
+
+    def test_send_reading_accepts_esp32_utc_timestamp(self, test_user, db_session):
+        """O sufixo Z enviado pelo ESP32 deve ser normalizado antes da comparação."""
+        api_key = "test_esp32_timestamp_key"
+        device = Device(
+            user_id=test_user.id,
+            name="Medidor ESP32",
+            api_key_hash=hash_api_key(api_key),
+        )
+        db_session.add(device)
+        db_session.commit()
+
+        measured_at = (
+            utc_now()
+            .replace(tzinfo=timezone.utc)
+            .isoformat(timespec="seconds")
+            .replace("+00:00", "Z")
+        )
+        response = client.post(
+            "/api/leitura",
+            json={
+                "event_id": "ESP32-TIMESTAMP-0001",
+                "fluxo_litros": 1.25,
+                "consumo_total": 10.5,
+                "measured_at": measured_at,
+            },
+            headers={"Authorization": f"Bearer {api_key}"},
+        )
+
+        assert response.status_code == 200
+        assert response.json()["timestamp"] == measured_at.removesuffix("Z")
 
     def test_send_reading_no_auth(self):
         """✗ Falhar sem API key"""
