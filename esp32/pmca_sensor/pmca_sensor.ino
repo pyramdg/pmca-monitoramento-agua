@@ -602,7 +602,7 @@ void imprimirStatus() {
   if (agora >= 15000 && totalTransicoes == 0 &&
       agora - ultimoAvisoSensorMs >= 30000) {
     Serial.printf(
-        "AVISO: nenhum sinal chegou ao GPIO %u. Confira o fio de sinal, o GND comum e a alimentação do sensor.\n",
+        "AVISO: sem pulsos desde a inicialização. Se houver água passando, confira o sinal no GPIO %u, o GND comum e a alimentação.\n",
         Config::SENSOR_PIN);
     ultimoAvisoSensorMs = agora;
   }
