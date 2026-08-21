@@ -51,7 +51,7 @@ emyPxgcYxn/eR44/KJ4EBs+lVDR3veyJm+kXQ99b21/+jh5Xos1AnX5iItreGCc=
 // Podem ser alterados em Sketch > Exportar binário compilado com flags de build,
 // sem precisar procurar valores espalhados pelo código.
 #ifndef PMCA_SENSOR_PIN
-#define PMCA_SENSOR_PIN 27
+#define PMCA_SENSOR_PIN 15
 #endif
 
 #ifndef PMCA_PULSOS_POR_LITRO
