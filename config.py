@@ -1,4 +1,5 @@
 import os
+import secrets
 from dotenv import load_dotenv
 
 load_dotenv()
@@ -13,14 +14,15 @@ DATABASE_URL = os.getenv(
 )
 
 # Segurança
-SECRET_KEY = os.getenv(
-    "SECRET_KEY", "your-secret-key-change-in-production"  # MUDE EM PRODUÇÃO!
-)
-
-if ENV != "development" and SECRET_KEY == "your-secret-key-change-in-production":
-    raise RuntimeError(
-        "SECRET_KEY deve ser configurada fora do ambiente de desenvolvimento"
-    )
+SECRET_KEY = os.getenv("SECRET_KEY")
+if not SECRET_KEY:
+    if ENV != "development":
+        raise RuntimeError(
+            "SECRET_KEY deve ser configurada fora do ambiente de desenvolvimento"
+        )
+    # Desenvolvimento local continua simples, mas sem um segredo público previsível.
+    # Tokens locais deixam de valer quando o processo reinicia sem arquivo .env.
+    SECRET_KEY = secrets.token_urlsafe(32)
 
 # API
 API_KEY_EXPIRATION = 30 * 24 * 60 * 60  # 30 dias em segundos

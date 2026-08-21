@@ -1,24 +1,14 @@
-# ========== FastAPI & Web ==========
-fastapi==0.109.0
-uvicorn[standard]==0.27.0
-python-multipart==0.0.6
+# Runtime
+fastapi==0.141.1
+uvicorn==0.52.3
+sqlalchemy==2.0.52
+pydantic[email]==2.13.4
+PyJWT==2.13.0
+passlib==1.7.4
+python-dotenv==1.2.2
 
-# ========== Database ==========
-sqlalchemy==2.0.23
-alembic==1.13.0
-
-# ========== Autenticação & Segurança ==========
-pydantic[email]==2.5.2
-python-jose[cryptography]==3.3.0
-passlib[bcrypt]==1.7.4
-PyJWT==2.8.1
-python-dotenv==1.0.0
-bcrypt==4.1.1
-
-# ========== Utilidades ==========
-requests==2.31.0
-
-# ========== Desenvolvimento (opcional) ==========
-pytest==7.4.3
-black==23.12.1
-flake8==6.1.0
+# Testes e qualidade
+httpx==0.28.1
+pytest==9.1.1
+black==26.5.1
+flake8==7.3.0
