@@ -3,7 +3,7 @@ fastapi==0.141.1
 uvicorn==0.52.3
 sqlalchemy==2.0.52
 psycopg[binary]==3.3.3
-alembic==1.18.4
+alembic==1.19.1
 pydantic[email]==2.13.4
 PyJWT==2.13.0
 passlib==1.7.4
