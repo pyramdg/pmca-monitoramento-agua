@@ -7,6 +7,8 @@ const state = {
   days: 7,
   settingsLoaded: false,
 };
+const isLocalFile = window.location.protocol === "file:";
+const onlineDashboardUrl = "https://pmca-monitoramento-agua-production.up.railway.app/dashboard";
 localStorage.removeItem("pmca_access");
 localStorage.removeItem("pmca_refresh");
 
@@ -188,6 +190,10 @@ document.querySelectorAll(".tab").forEach((button) => button.addEventListener("c
 $("#auth-form").addEventListener("submit", async (event) => {
   event.preventDefault();
   const button = $("#auth-submit"); const error = $("#auth-error");
+  if (isLocalFile) {
+    error.textContent = "Este arquivo é apenas uma prévia. Abra o PMCA online para entrar.";
+    return;
+  }
   button.disabled = true; error.textContent = "";
   const body = {email: $("#email").value.trim(), password: $("#password").value};
   try {
@@ -347,6 +353,11 @@ window.matchMedia("(prefers-color-scheme: dark)").addEventListener("change", () 
 setInterval(() => !dashboardView.classList.contains("hidden") && loadDashboard(), 15000);
 
 (async function start() {
+  if (isLocalFile) {
+    $("#local-file-notice").classList.remove("hidden");
+    document.querySelectorAll('a[href="/dashboard"]').forEach((link) => { link.href = onlineDashboardUrl; });
+    return showAuth();
+  }
   if (!state.accessToken && !(await refreshSession())) return showAuth();
   try { const user = await request("/auth/me"); showDashboard(user); if (state.legacyRefreshToken) await refreshSession(); }
   catch { clearSession(); showAuth(); }

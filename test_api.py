@@ -641,7 +641,19 @@ def test_dashboard_web_is_available():
     assert "Cada litro conta" in response.text
     assert 'id="device-status"' in response.text
     assert 'id="device-last-seen"' in response.text
+    assert 'href="styles.css?v=' in response.text
+    assert 'src="app.js?v=' in response.text
     assert "default-src 'self'" in response.headers["content-security-policy"]
+    assert response.headers["cache-control"] == "no-cache, must-revalidate"
+
+    styles = client.get("/styles.css")
+    script = client.get("/app.js")
+    assert styles.status_code == 200
+    assert styles.headers["content-type"].startswith("text/css")
+    assert styles.headers["cache-control"] == "no-cache, must-revalidate"
+    assert script.status_code == 200
+    assert script.headers["content-type"].startswith("text/javascript")
+    assert script.headers["cache-control"] == "no-cache, must-revalidate"
 
 
 if __name__ == "__main__":

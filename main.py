@@ -58,6 +58,10 @@ async def add_security_headers(request, call_next):
             "img-src 'self' data:; connect-src 'self'; frame-ancestors 'none'; "
             "base-uri 'self'; form-action 'self'"
         )
+    if request.url.path in {"/dashboard", "/styles.css", "/app.js"}:
+        # O painel evolui junto com o servidor; force o navegador a validar a
+        # versão para não misturar HTML novo com CSS ou JavaScript antigos.
+        response.headers["Cache-Control"] = "no-cache, must-revalidate"
     return response
 
 
@@ -102,6 +106,18 @@ def root():
 def dashboard_web():
     """Interface web do monitoramento."""
     return FileResponse(WEB_DIR / "index.html")
+
+
+# Estes atalhos mantêm os arquivos relativos do painel funcionando tanto quando
+# servidos pela aplicação quanto quando o HTML é aberto localmente por engano.
+@app.get("/styles.css", include_in_schema=False)
+def dashboard_styles():
+    return FileResponse(WEB_DIR / "styles.css", media_type="text/css")
+
+
+@app.get("/app.js", include_in_schema=False)
+def dashboard_script():
+    return FileResponse(WEB_DIR / "app.js", media_type="text/javascript")
 
 
 if __name__ == "__main__":
