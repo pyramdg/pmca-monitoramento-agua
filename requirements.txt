@@ -4,7 +4,7 @@ uvicorn==0.52.3
 sqlalchemy==2.0.52
 psycopg[binary]==3.3.3
 alembic==1.18.4
-pydantic[email]==2.13.4
+pydantic[email]==2.13.5
 PyJWT==2.13.0
 passlib==1.7.4
 python-dotenv==1.2.2
