@@ -119,6 +119,15 @@ function escapeHtml(value) {
   return element.innerHTML;
 }
 
+function apiErrorMessage(data) {
+  const detail = data?.detail;
+  if (typeof detail === "string") return detail;
+  if (Array.isArray(detail)) {
+    return detail.map((item) => item?.msg || String(item)).join(" ");
+  }
+  return "Não foi possível concluir a operação.";
+}
+
 async function request(path, options = {}, allowRefresh = true) {
   const headers = {"Content-Type": "application/json", ...(options.headers || {})};
   if (state.accessToken && !headers.Authorization) headers.Authorization = `Bearer ${state.accessToken}`;
@@ -128,7 +137,7 @@ async function request(path, options = {}, allowRefresh = true) {
     if (refreshed) return request(path, options, false);
   }
   const data = response.status === 204 ? null : await response.json().catch(() => ({}));
-  if (!response.ok) throw new Error(data?.detail || "Não foi possível concluir a operação.");
+  if (!response.ok) throw new Error(apiErrorMessage(data));
   return data;
 }
 
@@ -164,7 +173,11 @@ function showDashboard(user) {
 
 document.querySelectorAll(".tab").forEach((button) => button.addEventListener("click", () => {
   state.mode = button.dataset.mode;
-  document.querySelectorAll(".tab").forEach((tab) => tab.classList.toggle("active", tab === button));
+  document.querySelectorAll(".tab").forEach((tab) => {
+    const selected = tab === button;
+    tab.classList.toggle("active", selected);
+    tab.setAttribute("aria-selected", String(selected));
+  });
   $("#auth-title").textContent = state.mode === "login" ? "Acesse seu painel" : "Crie seu acesso";
   $("#auth-subtitle").textContent = state.mode === "login" ? "Use seu e-mail e senha para continuar." : "Cadastre-se para começar a monitorar.";
   $("#auth-submit").textContent = state.mode === "login" ? "Entrar" : "Criar conta";
@@ -186,6 +199,10 @@ $("#auth-form").addEventListener("submit", async (event) => {
 });
 
 async function loadDashboard() {
+  const refreshButton = $("#refresh");
+  refreshButton.classList.add("is-loading");
+  refreshButton.disabled = true;
+  refreshButton.setAttribute("aria-busy", "true");
   try {
     const [summary, analysis, devices, settings] = await Promise.all([request("/dashboard/resumo"), request(`/dashboard/analise?dias=${state.days}`), request("/devices"), request("/settings")]);
     state.readings = analysis.daily;
@@ -210,6 +227,10 @@ async function loadDashboard() {
     drawChart(analysis.daily);
   } catch (err) {
     if (err.message.includes("Token") || err.message.includes("autentic")) { clearSession(); showAuth(); }
+  } finally {
+    refreshButton.classList.remove("is-loading");
+    refreshButton.disabled = false;
+    refreshButton.removeAttribute("aria-busy");
   }
 }
 
@@ -231,19 +252,25 @@ function drawChart(readings) {
   const chartMin = 0;
   const chartMax = maxValue > 0 ? maxValue * 1.1 : 1;
   const range = chartMax - chartMin;
-  ctx.clearRect(0, 0, width, height); ctx.font = "12px system-ui"; ctx.fillStyle = "#82939d"; ctx.strokeStyle = "#e5edef"; ctx.lineWidth = 1;
+  const styles = getComputedStyle(document.documentElement);
+  const chartColor = (name) => styles.getPropertyValue(name).trim();
+  ctx.clearRect(0, 0, width, height); ctx.font = "12px -apple-system, BlinkMacSystemFont, sans-serif"; ctx.fillStyle = chartColor("--chart-label"); ctx.strokeStyle = chartColor("--chart-grid"); ctx.lineWidth = 1;
   for (let i = 0; i <= 4; i++) { const y = pad.t + ((height - pad.t - pad.b) * i / 4); ctx.beginPath(); ctx.moveTo(pad.l, y); ctx.lineTo(width - pad.r, y); ctx.stroke(); const value = chartMax - range * i / 4; ctx.fillText(`${value.toFixed(1)} L`, 2, y + 4); }
   const point = (value, index) => ({x: pad.l + (width-pad.l-pad.r) * index / Math.max(plotValues.length-1,1), y: pad.t + (height-pad.t-pad.b) * (1-(value-chartMin)/range)});
-  const gradient = ctx.createLinearGradient(0,pad.t,0,height-pad.b); gradient.addColorStop(0,"rgba(57,198,203,.32)"); gradient.addColorStop(1,"rgba(57,198,203,0)");
+  const gradient = ctx.createLinearGradient(0,pad.t,0,height-pad.b); gradient.addColorStop(0,chartColor("--chart-fill-start")); gradient.addColorStop(1,chartColor("--chart-fill-end"));
   ctx.beginPath(); plotValues.forEach((v,i) => { const p=point(v,i); i ? ctx.lineTo(p.x,p.y) : ctx.moveTo(p.x,p.y); }); ctx.lineTo(width-pad.r,height-pad.b); ctx.lineTo(pad.l,height-pad.b); ctx.closePath(); ctx.fillStyle=gradient; ctx.fill();
-  ctx.beginPath(); plotValues.forEach((v,i) => { const p=point(v,i); i ? ctx.lineTo(p.x,p.y) : ctx.moveTo(p.x,p.y); }); ctx.strokeStyle="#0b819b"; ctx.lineWidth=3; ctx.lineJoin="round"; ctx.stroke();
-  const first = parseUtc(readings[0].date); const last = parseUtc(readings[readings.length-1].date); ctx.fillStyle="#82939d"; ctx.fillText(first.toLocaleDateString("pt-BR"),pad.l,height-9); const label=last.toLocaleDateString("pt-BR"); ctx.fillText(label,width-pad.r-ctx.measureText(label).width,height-9);
+  ctx.beginPath(); plotValues.forEach((v,i) => { const p=point(v,i); i ? ctx.lineTo(p.x,p.y) : ctx.moveTo(p.x,p.y); }); ctx.strokeStyle=chartColor("--chart-line"); ctx.lineWidth=3; ctx.lineJoin="round"; ctx.stroke();
+  const first = parseUtc(readings[0].date); const last = parseUtc(readings[readings.length-1].date); ctx.fillStyle=chartColor("--chart-label"); ctx.fillText(first.toLocaleDateString("pt-BR"),pad.l,height-9); const label=last.toLocaleDateString("pt-BR"); ctx.fillText(label,width-pad.r-ctx.measureText(label).width,height-9);
 }
 
 $("#refresh").addEventListener("click", loadDashboard);
 document.querySelectorAll("[data-days]").forEach((button) => button.addEventListener("click", () => {
   state.days = Number(button.dataset.days);
-  document.querySelectorAll("[data-days]").forEach((item) => item.classList.toggle("active", item === button));
+  document.querySelectorAll("[data-days]").forEach((item) => {
+    const selected = item === button;
+    item.classList.toggle("active", selected);
+    item.setAttribute("aria-pressed", String(selected));
+  });
   loadDashboard();
 }));
 $("#logout").addEventListener("click", async () => { try { await fetch("/auth/logout", {method: "POST"}); } finally { clearSession(); showAuth(); } });
@@ -316,6 +343,7 @@ $("#reading-form").addEventListener("submit", async (event) => {
 });
 
 window.addEventListener("resize", () => state.readings.length && drawChart(state.readings));
+window.matchMedia("(prefers-color-scheme: dark)").addEventListener("change", () => state.readings.length && drawChart(state.readings));
 setInterval(() => !dashboardView.classList.contains("hidden") && loadDashboard(), 15000);
 
 (async function start() {

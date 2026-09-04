@@ -3,112 +3,88 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <meta name="theme-color" content="#071a2b">
+  <meta name="description" content="Painel PMCA para acompanhar consumo, vazão e a saúde dos seus medidores de água.">
+  <meta name="theme-color" content="#f5f5f7">
+  <meta name="color-scheme" content="light dark">
   <title>PMCA | Monitoramento de água</title>
   <link rel="stylesheet" href="/static/styles.css">
 </head>
 <body>
-  <div class="background" aria-hidden="true"></div>
+  <a class="skip-link" href="#main-content">Pular para o conteúdo</a>
+  <div class="ambient-background" aria-hidden="true"><i></i><i></i><i></i></div>
 
   <main id="auth-view" class="auth-shell">
-    <section class="brand-panel">
-      <div class="brand-mark">PM</div>
-      <p class="eyebrow">Monitoramento inteligente</p>
-      <h1>Cada litro conta.</h1>
-      <p class="brand-copy">Acompanhe vazão, consumo acumulado e histórico do seu sistema em tempo real.</p>
-      <div class="water-status"><span></span> Plataforma online</div>
+    <section class="brand-panel" aria-labelledby="brand-title">
+      <a class="brand" href="/dashboard" aria-label="PMCA — início"><span class="brand-symbol" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M12 2.7S5.6 9.8 5.6 14.5a6.4 6.4 0 0 0 12.8 0C18.4 9.8 12 2.7 12 2.7Z"/></svg></span><strong>PMCA</strong></a>
+      <div class="brand-message"><p class="eyebrow light">Monitoramento inteligente</p><h1 id="brand-title">Cada litro conta.</h1><p>Acompanhe sua água em tempo real, entenda seus hábitos e descubra possíveis vazamentos antes que virem desperdício.</p></div>
+      <div class="brand-benefits" aria-label="Benefícios da plataforma"><span><i aria-hidden="true"></i> Dados em tempo real</span><span><i aria-hidden="true"></i> Alertas de vazamento</span><span><i aria-hidden="true"></i> Histórico seguro</span></div>
     </section>
 
-    <section class="auth-card">
-      <div class="auth-tabs" role="tablist">
-        <button class="tab active" data-mode="login" type="button">Entrar</button>
-        <button class="tab" data-mode="register" type="button">Criar conta</button>
+    <section class="auth-side">
+      <div class="auth-card">
+        <div class="auth-intro"><span class="auth-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M12 2.7S5.6 9.8 5.6 14.5a6.4 6.4 0 0 0 12.8 0C18.4 9.8 12 2.7 12 2.7Z"/></svg></span><div><h2 id="auth-title">Acesse seu painel</h2><p id="auth-subtitle">Use seu e-mail e senha para continuar.</p></div></div>
+        <div class="auth-tabs" role="tablist" aria-label="Tipo de acesso"><button id="login-tab" class="tab active" data-mode="login" type="button" role="tab" aria-selected="true" aria-controls="auth-form">Entrar</button><button id="register-tab" class="tab" data-mode="register" type="button" role="tab" aria-selected="false" aria-controls="auth-form">Criar conta</button></div>
+        <form id="auth-form" aria-labelledby="auth-title">
+          <label for="email">E-mail</label><input id="email" type="email" autocomplete="email" required placeholder="voce@exemplo.com">
+          <label for="password">Senha</label><input id="password" type="password" autocomplete="current-password" minlength="8" maxlength="128" required placeholder="Mínimo de 8 caracteres">
+          <button class="primary full" id="auth-submit" type="submit">Entrar</button><p id="auth-error" class="form-error" role="alert" aria-live="assertive"></p>
+        </form>
+        <p class="privacy-note"><span aria-hidden="true">●</span> Seus dados são protegidos e nunca aparecem no código público.</p>
       </div>
-      <h2 id="auth-title">Acesse seu painel</h2>
-      <p id="auth-subtitle">Use seu e-mail e senha para continuar.</p>
-      <form id="auth-form">
-        <label>E-mail<input id="email" type="email" autocomplete="email" required placeholder="voce@exemplo.com"></label>
-        <label>Senha<input id="password" type="password" autocomplete="current-password" minlength="8" maxlength="128" required placeholder="Mínimo de 8 caracteres"></label>
-        <button class="primary full" id="auth-submit" type="submit">Entrar</button>
-        <p id="auth-error" class="form-error" role="alert"></p>
-      </form>
     </section>
   </main>
 
   <main id="dashboard-view" class="dashboard hidden">
-    <header class="topbar">
-      <a class="logo" href="/dashboard"><span>PM</span><strong>PMCA</strong></a>
-      <div class="top-actions">
-        <div class="live"><i></i> Atualização a cada 15 s</div>
-        <button id="logout" class="ghost" type="button">Sair</button>
-      </div>
-    </header>
+    <header class="topbar"><div class="topbar-inner">
+      <a class="logo" href="/dashboard" aria-label="PMCA — início"><span class="logo-symbol" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M12 2.7S5.6 9.8 5.6 14.5a6.4 6.4 0 0 0 12.8 0C18.4 9.8 12 2.7 12 2.7Z"/></svg></span><strong>PMCA</strong></a>
+      <nav class="top-actions" aria-label="Ações da conta"><div class="live"><i aria-hidden="true"></i><span>Atualização automática</span></div><button id="logout" class="quiet-button" type="button">Sair</button></nav>
+    </div></header>
 
-    <div class="dashboard-content">
-      <section class="welcome-row">
-        <div><p class="eyebrow">Visão geral</p><h1>Olá, <span id="user-name">usuário</span></h1><p>Dados atualizados diretamente do seu monitor de consumo.</p></div>
-        <button id="refresh" class="secondary" type="button">Atualizar dados</button>
+    <div id="main-content" class="dashboard-content" tabindex="-1">
+      <section class="welcome-row" aria-labelledby="page-title">
+        <div><p class="eyebrow">Painel de consumo</p><h1 id="page-title">Olá, <span id="user-name">usuário</span>.</h1><p>Veja como está o consumo de água da sua casa agora.</p></div>
+        <button id="refresh" class="secondary icon-button" type="button"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M20 12a8 8 0 1 1-2.34-5.66M20 4v6h-6"/></svg><span>Atualizar dados</span></button>
       </section>
 
       <section class="metrics" aria-label="Resumo de consumo">
-        <article class="metric featured"><div class="metric-icon">L</div><p>Consumo acumulado</p><strong id="total">0,00 L</strong><small id="last-update">Sem leituras</small></article>
-        <article class="metric"><div class="metric-icon">☀</div><p>Consumido hoje</p><strong id="today-total">0,00 L</strong><small>Volume registrado desde meia-noite</small></article>
-        <article class="metric"><div class="metric-icon">▦</div><p>Consumido no mês</p><strong id="month-total">0,00 L</strong><small id="month-detail">Volume registrado no mês atual</small></article>
-        <article class="metric"><div class="metric-icon">↗</div><p>Vazão atual</p><strong id="flow">0,00 L/min</strong><small>Última medição recebida</small></article>
+        <article class="metric featured"><div class="metric-top"><span class="metric-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M12 2.7S5.6 9.8 5.6 14.5a6.4 6.4 0 0 0 12.8 0C18.4 9.8 12 2.7 12 2.7Z"/></svg></span><span class="metric-kicker">Total</span></div><p>Consumo acumulado</p><strong id="total">0,00 L</strong><small id="last-update">Sem leituras</small></article>
+        <article class="metric"><div class="metric-top"><span class="metric-icon sun" aria-hidden="true"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.93 4.93l1.42 1.42M17.66 17.66l1.41 1.41M2 12h2M20 12h2M4.93 19.07l1.42-1.42M17.66 6.34l1.41-1.41"/></svg></span><span class="metric-kicker">Hoje</span></div><p>Consumido hoje</p><strong id="today-total">0,00 L</strong><small>Desde a meia-noite</small></article>
+        <article class="metric"><div class="metric-top"><span class="metric-icon calendar" aria-hidden="true"><svg viewBox="0 0 24 24"><rect x="3" y="5" width="18" height="16" rx="3"/><path d="M8 3v4M16 3v4M3 10h18"/></svg></span><span class="metric-kicker">Este mês</span></div><p>Consumo mensal</p><strong id="month-total">0,00 L</strong><small id="month-detail">Volume no mês atual</small></article>
+        <article class="metric"><div class="metric-top"><span class="metric-icon flow" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M4 16c2.7 0 2.7-8 5.3-8s2.7 8 5.4 8S17.3 8 20 8"/></svg></span><span class="metric-kicker">Agora</span></div><p>Vazão atual</p><strong id="flow">0,00 L/min</strong><small>Última medição recebida</small></article>
       </section>
 
-      <section class="grid">
+      <section class="primary-grid">
         <article class="panel chart-panel">
-          <div class="panel-head"><div><p class="eyebrow">Análise por período</p><h2>Consumo diário</h2></div><div class="period-filter" aria-label="Período do gráfico"><button type="button" class="active" data-days="7">7 dias</button><button type="button" data-days="30">30 dias</button><button type="button" data-days="90">90 dias</button></div></div>
-          <div class="chart-wrap"><canvas id="chart" aria-label="Gráfico do consumo diário"></canvas><div id="empty-chart" class="empty">As leituras do sensor aparecerão aqui.</div></div>
+          <div class="panel-head"><div><p class="eyebrow">Tendência</p><h2>Consumo diário</h2></div><div class="period-filter" role="group" aria-label="Período do gráfico"><button type="button" class="active" data-days="7" aria-pressed="true">7 dias</button><button type="button" data-days="30" aria-pressed="false">30 dias</button><button type="button" data-days="90" aria-pressed="false">90 dias</button></div></div>
+          <div class="chart-wrap"><canvas id="chart" role="img" aria-label="Gráfico do consumo diário"></canvas><div id="empty-chart" class="empty">As leituras do sensor aparecerão aqui.</div></div>
           <div class="analysis-footer"><span id="period-total">0,00 L no período</span><span id="period-comparison">Comparação disponível após mais dados</span></div>
         </article>
 
-        <aside class="panel device-panel">
-          <div class="device-heading">
-            <div><p class="eyebrow">Dispositivo</p><h2 id="device-name">Meu medidor</h2></div>
-            <span id="device-status" class="device-status waiting"><i></i><span>Aguardando</span></span>
-          </div>
+        <aside class="panel device-panel" aria-labelledby="device-name">
+          <div class="device-heading"><div><p class="eyebrow">Medidor principal</p><h2 id="device-name">Meu medidor</h2></div><span id="device-status" class="device-status waiting"><i aria-hidden="true"></i><span>Aguardando</span></span></div>
+          <div class="device-visual" aria-hidden="true"><span><svg viewBox="0 0 24 24"><path d="M12 2.7S5.6 9.8 5.6 14.5a6.4 6.4 0 0 0 12.8 0C18.4 9.8 12 2.7 12 2.7Z"/></svg></span></div>
           <p id="device-status-message" class="device-status-message">Verificando a comunicação com o ESP32...</p>
-
-          <div class="device-facts" aria-label="Informações do dispositivo">
-            <div><span>Última comunicação</span><strong id="device-last-seen">Nunca</strong></div>
-            <div><span>Situação da água</span><strong id="water-state">Sem dados</strong></div>
-            <div><span>Leituras hoje</span><strong id="today-readings">0</strong></div>
-            <div><span>Sinal do Wi-Fi</span><strong id="wifi-signal">Sem dados</strong></div>
-            <div><span>Fila aguardando envio</span><strong id="pending-queue">Sem dados</strong></div>
-            <div><span>Versão do aparelho</span><strong id="firmware-version">Sem dados</strong></div>
-          </div>
-
-          <div id="device-alert" class="device-alert hidden" role="status"></div>
-          <div class="device-setup">
-          <h3>Configuração do ESP32</h3>
-          <p>Gere uma chave para autorizar o envio das leituras. Uma nova chave desativa a anterior.</p>
-          <button id="generate-key" class="secondary full" type="button">Gerar API key</button>
-          <div id="key-box" class="key-box hidden"><span>Copie agora — ela não será exibida novamente.</span><code id="api-key"></code><button id="copy-key" class="ghost full" type="button">Copiar chave</button></div>
-          <details id="test-reading" class="test-reading hidden"><summary>Enviar leitura de teste</summary><form id="reading-form"><label>Vazão (L/min)<input id="test-flow" type="number" min="0" step="0.01" value="1.25" required></label><label>Consumo total (L)<input id="test-total" type="number" min="0" step="0.01" value="10.5" required></label><button class="primary full" type="submit">Enviar leitura</button></form></details>
-          <p id="device-message" class="device-message" role="status"></p>
-          </div>
-
-          <div class="device-manager">
-            <h3>Meus medidores</h3>
-            <div id="device-list" class="device-list"></div>
-            <form id="add-device-form" class="add-device-form">
-              <label>Nome do novo medidor<input id="new-device-name" maxlength="80" required placeholder="Ex.: Entrada principal"></label>
-              <button class="secondary full" type="submit">Adicionar medidor</button>
-            </form>
-          </div>
-
-          <div class="account-settings">
-            <h3>Meta e estimativa</h3>
-            <p>Use os valores da sua conta de água. Eles podem ser alterados a qualquer momento.</p>
-            <form id="settings-form">
-              <label>Meta mensal (litros)<input id="monthly-goal" type="number" min="1" step="1" placeholder="Ex.: 12000"></label>
-              <label>Tarifa aproximada (R$/m³)<input id="water-price" type="number" min="0" step="0.01" placeholder="Ex.: 8,50"></label>
-              <button class="secondary full" type="submit">Salvar meta e tarifa</button>
-            </form>
-          </div>
+          <div class="device-facts" aria-label="Informações do dispositivo"><div><span>Última comunicação</span><strong id="device-last-seen">Nunca</strong></div><div><span>Situação da água</span><strong id="water-state">Sem dados</strong></div><div><span>Leituras hoje</span><strong id="today-readings">0</strong></div><div><span>Sinal do Wi-Fi</span><strong id="wifi-signal">Sem dados</strong></div><div><span>Fila de envio</span><strong id="pending-queue">Sem dados</strong></div><div><span>Versão</span><strong id="firmware-version">Sem dados</strong></div></div>
+          <div id="device-alert" class="device-alert hidden" role="status" aria-live="polite"></div>
         </aside>
+      </section>
+
+      <section class="management-grid" aria-label="Gerenciamento">
+        <article class="panel device-manager">
+          <div class="panel-head compact"><div><p class="eyebrow">Seus aparelhos</p><h2>Meus medidores</h2><p>Gerencie os locais que enviam dados para este painel.</p></div></div>
+          <div id="device-list" class="device-list"></div>
+          <details class="setup-disclosure"><summary><span><strong>Conectar um medidor</strong><small>Adicionar ESP32 ou trocar a chave de acesso</small></span><i aria-hidden="true"></i></summary><div class="setup-content">
+            <form id="add-device-form" class="add-device-form"><label for="new-device-name">Nome do novo medidor</label><div class="inline-form"><input id="new-device-name" maxlength="80" required placeholder="Ex.: Entrada principal"><button class="secondary" type="submit">Adicionar</button></div></form>
+            <div class="setup-divider"><span>ou</span></div>
+            <div class="device-setup"><h3>Chave do medidor principal</h3><p>Gere uma chave para autorizar o ESP32. Ao gerar outra, a anterior deixa de funcionar.</p><button id="generate-key" class="secondary" type="button">Gerar nova API key</button><div id="key-box" class="key-box hidden"><span>Copie agora — ela não será exibida novamente.</span><code id="api-key"></code><button id="copy-key" class="quiet-button full" type="button">Copiar chave</button></div><details id="test-reading" class="test-reading hidden"><summary>Enviar uma leitura de teste</summary><form id="reading-form"><label for="test-flow">Vazão (L/min)</label><input id="test-flow" type="number" min="0" step="0.01" value="1.25" required><label for="test-total">Consumo total (L)</label><input id="test-total" type="number" min="0" step="0.01" value="10.5" required><button class="primary full" type="submit">Enviar leitura</button></form></details></div>
+            <p id="device-message" class="device-message" role="status" aria-live="polite"></p>
+          </div></details>
+        </article>
+
+        <article class="panel account-settings">
+          <div class="panel-head compact"><div><p class="eyebrow">Planejamento</p><h2>Meta e estimativa</h2><p>Defina um objetivo mensal e uma tarifa aproximada.</p></div></div>
+          <form id="settings-form"><label for="monthly-goal">Meta mensal</label><div class="input-with-unit"><input id="monthly-goal" type="number" min="1" step="1" placeholder="12000"><span>litros</span></div><label for="water-price">Tarifa aproximada</label><div class="input-with-unit"><span>R$</span><input id="water-price" type="number" min="0" step="0.01" placeholder="8,50"><span>por m³</span></div><button class="primary full" type="submit">Salvar preferências</button></form>
+        </article>
       </section>
     </div>
   </main>
