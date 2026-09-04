@@ -17,6 +17,7 @@ class TestAuth:
         """✓ Verificar se a API está online"""
         response = client.get("/health")
         assert response.status_code == 200
+        assert response.headers["x-content-type-options"] == "nosniff"
 
     def test_register_success(self):
         """✓ Registrar novo usuário com sucesso"""
@@ -640,6 +641,7 @@ def test_dashboard_web_is_available():
     assert "Cada litro conta" in response.text
     assert 'id="device-status"' in response.text
     assert 'id="device-last-seen"' in response.text
+    assert "default-src 'self'" in response.headers["content-security-policy"]
 
 
 if __name__ == "__main__":
