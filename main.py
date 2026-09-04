@@ -8,7 +8,7 @@ from pathlib import Path
 from config import ALLOWED_ORIGINS, DEBUG
 from database import engine, init_db
 from sqlalchemy import text
-from routes import auth, sensor, dashboard
+from routes import auth, sensor, dashboard, devices
 
 # Inicializar banco de dados
 init_db()
@@ -44,6 +44,7 @@ app.add_middleware(
 app.include_router(auth.router)
 app.include_router(sensor.router)
 app.include_router(dashboard.router)
+app.include_router(devices.router)
 
 WEB_DIR = Path(__file__).parent / "web"
 app.mount("/static", StaticFiles(directory=WEB_DIR), name="static")

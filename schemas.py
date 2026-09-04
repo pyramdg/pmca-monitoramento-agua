@@ -81,3 +81,29 @@ class APIKeyResponse(BaseModel):
     device_id: int
     device_name: str
     expires_at: Optional[datetime] = None
+
+
+# ==================== DEVICE ====================
+
+
+class DeviceCreate(BaseModel):
+    name: str = Field(default="Meu medidor", min_length=1, max_length=80)
+
+
+class DeviceUpdate(BaseModel):
+    name: Optional[str] = Field(default=None, min_length=1, max_length=80)
+    is_active: Optional[bool] = None
+
+
+class DeviceResponse(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: int
+    name: str
+    is_active: bool
+    api_key_expires_at: Optional[datetime] = None
+    last_seen_at: Optional[datetime] = None
+    calculated_consumption: float
+    created_at: datetime
+    status: str = "aguardando"
+    seconds_since_contact: Optional[int] = None

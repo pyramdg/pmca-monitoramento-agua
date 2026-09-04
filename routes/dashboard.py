@@ -1,59 +1,20 @@
 from datetime import timedelta
-from typing import Annotated
-
-from fastapi import APIRouter, Depends, Header, HTTPException, Query, status
+from fastapi import APIRouter, Depends, Query
 from sqlalchemy import func
 from sqlalchemy.orm import Session
 
-from auth_utils import extract_user_id_from_token, utc_now
+from auth_utils import utc_now
 from config import (
     DEVICE_ONLINE_TIMEOUT_SECONDS,
     LEAK_DURATION_MINUTES,
     LEAK_READING_MAX_GAP_SECONDS,
 )
 from database import get_db
+from dependencies import get_current_user
 from models import Device, User, Leitura
 from schemas import LeituraResponse
 
 router = APIRouter(prefix="/dashboard", tags=["dashboard"])
-
-
-def get_current_user(
-    authorization: Annotated[str | None, Header()] = None,
-    db: Session = Depends(get_db),
-) -> User:
-    """Obtém o usuário autenticado a partir de um JWT Bearer válido."""
-    if not authorization:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Token JWT não fornecido",
-        )
-
-    try:
-        scheme, token = authorization.split()
-        if scheme.lower() != "bearer":
-            raise ValueError
-    except ValueError as error:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Formato de Authorization inválido",
-        ) from error
-
-    user_id = extract_user_id_from_token(token)
-    if not user_id:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Token JWT inválido ou expirado",
-        )
-
-    user = db.query(User).filter(User.id == user_id, User.is_active.is_(True)).first()
-    if not user:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Usuário não encontrado ou desativado",
-        )
-
-    return user
 
 
 @router.get("/resumo")

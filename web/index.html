@@ -85,6 +85,15 @@
           <details id="test-reading" class="test-reading hidden"><summary>Enviar leitura de teste</summary><form id="reading-form"><label>Vazão (L/min)<input id="test-flow" type="number" min="0" step="0.01" value="1.25" required></label><label>Consumo total (L)<input id="test-total" type="number" min="0" step="0.01" value="10.5" required></label><button class="primary full" type="submit">Enviar leitura</button></form></details>
           <p id="device-message" class="device-message" role="status"></p>
           </div>
+
+          <div class="device-manager">
+            <h3>Meus medidores</h3>
+            <div id="device-list" class="device-list"></div>
+            <form id="add-device-form" class="add-device-form">
+              <label>Nome do novo medidor<input id="new-device-name" maxlength="80" required placeholder="Ex.: Entrada principal"></label>
+              <button class="secondary full" type="submit">Adicionar medidor</button>
+            </form>
+          </div>
         </aside>
       </section>
     </div>

@@ -453,6 +453,73 @@ class TestDashboard:
         assert len(data) == 5
 
 
+class TestDevices:
+    def test_create_list_rename_disable_and_rotate_key(
+        self, test_user, db_session, auth_headers
+    ):
+        created = client.post(
+            "/devices",
+            json={"name": "Caixa d'água"},
+            headers=auth_headers,
+        )
+        assert created.status_code == 201
+        created_data = created.json()
+        device_id = created_data["device_id"]
+        first_key = created_data["api_key"]
+
+        listed = client.get("/devices", headers=auth_headers)
+        assert listed.status_code == 200
+        assert listed.json()[0]["name"] == "Caixa d'água"
+
+        renamed = client.patch(
+            f"/devices/{device_id}",
+            json={"name": "Entrada principal"},
+            headers=auth_headers,
+        )
+        assert renamed.status_code == 200
+        assert renamed.json()["name"] == "Entrada principal"
+
+        rotated = client.post(f"/devices/{device_id}/api-key", headers=auth_headers)
+        assert rotated.status_code == 200
+        assert rotated.json()["api_key"] != first_key
+
+        disabled = client.patch(
+            f"/devices/{device_id}",
+            json={"is_active": False},
+            headers=auth_headers,
+        )
+        assert disabled.status_code == 200
+        assert disabled.json()["is_active"] is False
+
+    def test_user_cannot_manage_another_users_device(
+        self, test_user, db_session, auth_headers
+    ):
+        from auth_utils import hash_password
+        from models import User
+
+        other_user = User(
+            email="other@example.com",
+            password_hash=hash_password("password123"),
+            is_active=True,
+        )
+        db_session.add(other_user)
+        db_session.flush()
+        device = Device(
+            user_id=other_user.id,
+            name="Medidor privado",
+            api_key_hash=hash_api_key("other-users-key"),
+        )
+        db_session.add(device)
+        db_session.commit()
+
+        response = client.patch(
+            f"/devices/{device.id}",
+            json={"name": "Tentativa"},
+            headers=auth_headers,
+        )
+        assert response.status_code == 404
+
+
 def test_dashboard_web_is_available():
     response = client.get("/dashboard")
     assert response.status_code == 200

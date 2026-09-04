@@ -79,6 +79,38 @@ function renderDeviceStatus(summary) {
   }
 }
 
+function showGeneratedKey(data) {
+  state.apiKey = data.api_key;
+  $("#api-key").textContent = data.api_key;
+  $("#key-box").classList.remove("hidden");
+  $("#test-reading").classList.remove("hidden");
+}
+
+function renderDevices(devices) {
+  const list = $("#device-list");
+  if (!devices.length) {
+    list.innerHTML = '<p class="device-list-empty">Nenhum medidor cadastrado.</p>';
+    return;
+  }
+  const statusLabels = {online: "Online", offline: "Offline", aguardando: "Aguardando", desativado: "Desativado"};
+  list.innerHTML = devices.map((device) => `
+    <article class="device-list-item" data-device-id="${device.id}" data-device-name="${escapeHtml(device.name)}">
+      <div><strong>${escapeHtml(device.name)}</strong><span class="mini-status ${device.status}">${statusLabels[device.status] || device.status}</span></div>
+      <small>${formatNumber(device.calculated_consumption)} L registrados</small>
+      <div class="device-list-actions">
+        <button type="button" class="ghost" data-action="rename">Renomear</button>
+        <button type="button" class="ghost" data-action="rotate">Nova chave</button>
+        <button type="button" class="ghost" data-action="toggle" data-active="${device.is_active}">${device.is_active ? "Desativar" : "Ativar"}</button>
+      </div>
+    </article>`).join("");
+}
+
+function escapeHtml(value) {
+  const element = document.createElement("div");
+  element.textContent = String(value);
+  return element.innerHTML;
+}
+
 async function request(path, options = {}, allowRefresh = true) {
   const headers = {"Content-Type": "application/json", ...(options.headers || {})};
   if (state.accessToken && !headers.Authorization) headers.Authorization = `Bearer ${state.accessToken}`;
@@ -147,7 +179,7 @@ $("#auth-form").addEventListener("submit", async (event) => {
 
 async function loadDashboard() {
   try {
-    const [summary, readings] = await Promise.all([request("/dashboard/resumo"), request("/dashboard/historico?dias=7")]);
+    const [summary, readings, devices] = await Promise.all([request("/dashboard/resumo"), request("/dashboard/historico?dias=7"), request("/devices")]);
     state.readings = readings;
     $("#total").textContent = `${formatNumber(summary.consumo_total)} L`;
     $("#today-total").textContent = `${formatNumber(summary.consumo_hoje)} L`;
@@ -156,6 +188,7 @@ async function loadDashboard() {
     $("#last-update").textContent = summary.timestamp_ultima ? `Atualizado em ${parseUtc(summary.timestamp_ultima).toLocaleString("pt-BR")}` : "Sem leituras";
     $("#reading-count").textContent = `${readings.length} ${readings.length === 1 ? "leitura" : "leituras"}`;
     renderDeviceStatus(summary);
+    renderDevices(devices);
     drawChart(readings);
   } catch (err) {
     if (err.message.includes("Token") || err.message.includes("autentic")) { clearSession(); showAuth(); }
@@ -193,8 +226,51 @@ $("#refresh").addEventListener("click", loadDashboard);
 $("#logout").addEventListener("click", () => { clearSession(); showAuth(); });
 $("#generate-key").addEventListener("click", async () => {
   const message = $("#device-message"); message.textContent = ""; message.classList.remove("error");
-  try { const data = await request("/auth/api-key", {method:"POST"}); state.apiKey=data.api_key; $("#api-key").textContent=data.api_key; $("#key-box").classList.remove("hidden"); $("#test-reading").classList.remove("hidden"); message.textContent="Chave criada com sucesso."; await loadDashboard(); }
+  try { const data = await request("/auth/api-key", {method:"POST"}); showGeneratedKey(data); message.textContent="Chave criada com sucesso."; await loadDashboard(); }
   catch(err){ message.textContent=err.message; message.classList.add("error"); }
+});
+
+$("#add-device-form").addEventListener("submit", async (event) => {
+  event.preventDefault();
+  const message = $("#device-message");
+  try {
+    const data = await request("/devices", {method: "POST", body: JSON.stringify({name: $("#new-device-name").value.trim()})});
+    showGeneratedKey(data);
+    $("#new-device-name").value = "";
+    message.textContent = `Medidor “${data.device_name}” criado. Copie a chave agora.`;
+    message.classList.remove("error");
+    await loadDashboard();
+  } catch (err) { message.textContent = err.message; message.classList.add("error"); }
+});
+
+$("#device-list").addEventListener("click", async (event) => {
+  const button = event.target.closest("button[data-action]");
+  if (!button) return;
+  const item = button.closest("[data-device-id]");
+  const deviceId = item.dataset.deviceId;
+  const deviceName = item.dataset.deviceName;
+  const message = $("#device-message");
+  button.disabled = true;
+  try {
+    if (button.dataset.action === "rename") {
+      const name = window.prompt("Novo nome do medidor:", deviceName);
+      if (!name || !name.trim()) return;
+      await request(`/devices/${deviceId}`, {method: "PATCH", body: JSON.stringify({name: name.trim()})});
+      message.textContent = "Nome atualizado.";
+    } else if (button.dataset.action === "rotate") {
+      if (!window.confirm("A chave atual deixará de funcionar. Deseja gerar outra?")) return;
+      const data = await request(`/devices/${deviceId}/api-key`, {method: "POST"});
+      showGeneratedKey(data);
+      message.textContent = `Nova chave criada para “${data.device_name}”.`;
+    } else {
+      const active = button.dataset.active === "true";
+      await request(`/devices/${deviceId}`, {method: "PATCH", body: JSON.stringify({is_active: !active})});
+      message.textContent = active ? "Medidor desativado." : "Medidor ativado.";
+    }
+    message.classList.remove("error");
+    await loadDashboard();
+  } catch (err) { message.textContent = err.message; message.classList.add("error"); }
+  finally { button.disabled = false; }
 });
 $("#copy-key").addEventListener("click", async () => { await navigator.clipboard.writeText(state.apiKey || ""); $("#device-message").textContent="Chave copiada."; });
 $("#reading-form").addEventListener("submit", async (event) => {
