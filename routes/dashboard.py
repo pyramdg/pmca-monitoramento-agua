@@ -149,6 +149,9 @@ def resumo_consumo(
             "possivel_vazamento": possible_leak,
             "fluxo_continuo_minutos": continuous_flow_seconds // 60,
             "limite_vazamento_minutos": LEAK_DURATION_MINUTES,
+            "versao_firmware": device.firmware_version if device else None,
+            "sinal_wifi": device.wifi_rssi if device else None,
+            "fila_pendente": device.pending_queue if device else None,
         },
     }
 

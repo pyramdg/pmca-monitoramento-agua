@@ -59,6 +59,7 @@ emyPxgcYxn/eR44/KJ4EBs+lVDR3veyJm+kXQ99b21/+jh5Xos1AnX5iItreGCc=
 #endif
 
 namespace Config {
+constexpr char FIRMWARE_VERSION[] = "2.1.0";
 constexpr uint8_t SENSOR_PIN = PMCA_SENSOR_PIN;
 constexpr uint8_t LED_PIN = 2;
 constexpr uint8_t CONFIG_PIN = 0;  // Botão BOOT da maioria das placas ESP32.
@@ -168,9 +169,19 @@ String montarPaginaPortal(const String &mensagem = "") {
   }
 
   pagina += "<form method=\"post\" action=\"/salvar\">";
-  pagina += "<label>Nome do Wi-Fi<input name=\"ssid\" required maxlength=\"32\" value=\"";
+  pagina += "<label>Nome do Wi-Fi<input name=\"ssid\" list=\"redes-wifi\" required maxlength=\"32\" value=\"";
   pagina += escaparHtml(wifiSsid);
-  pagina += "\"></label>";
+  pagina += "\"></label><datalist id=\"redes-wifi\">";
+  const int totalRedes = WiFi.scanNetworks(false, true);
+  for (int i = 0; i < totalRedes; i++) {
+    const String ssid = escaparHtml(WiFi.SSID(i));
+    if (!ssid.isEmpty()) {
+      pagina += "<option value=\"" + ssid + "\">" + ssid + " (";
+      pagina += String(WiFi.RSSI(i)) + " dBm)</option>";
+    }
+  }
+  WiFi.scanDelete();
+  pagina += "</datalist>";
   pagina += F(R"HTML(<label>Senha do Wi-Fi<input type="password" name="senha" maxlength="63" placeholder="Deixe vazio para manter a atual"></label><label class="linha"><input type="checkbox" name="aberta" value="1">Esta rede não possui senha</label><label>API key do dispositivo<input type="password" name="key" autocomplete="off" placeholder="Cole a nova chave ou deixe vazio para manter"></label><p class="hint">Ao gerar outra API key no painel, a chave anterior deixa de funcionar. O endereço do servidor já está gravado no aparelho.</p><button>Salvar e conectar</button></form><form method="post" action="/apagar"><button class="apagar">Apagar Wi-Fi e API key</button></form></main></body></html>)HTML");
   return pagina;
 }
@@ -255,7 +266,7 @@ void abrirPortalConfiguracao(const char *motivo) {
 
   WiFi.disconnect(true);
   delay(100);
-  WiFi.mode(WIFI_AP);
+  WiFi.mode(WIFI_AP_STA);
 
   char identificador[7];
   snprintf(
@@ -469,10 +480,13 @@ void guardarLeituraNaFila() {
       static_cast<unsigned long>(sequenciaLeitura));
 
   String json;
-  json.reserve(180);
+  json.reserve(280);
   json = "{\"event_id\":\"" + String(evento) + "\",\"fluxo_litros\":";
   json += String(vazaoLitrosMin, 3);
   json += ",\"consumo_total\":" + String(consumoTotal, 3);
+  json += ",\"firmware_version\":\"" + String(Config::FIRMWARE_VERSION) + "\"";
+  json += ",\"wifi_rssi\":" + String(WiFi.RSSI());
+  json += ",\"queue_depth\":" + String(contarArquivosFila() + 1);
 
   const String horario = horarioIsoAtual();
   if (!horario.isEmpty()) {
@@ -647,7 +661,7 @@ void setup() {
   ultimoSalvamentoMs = agora;
 
   Serial.println();
-  Serial.println("PMCA iniciado.");
+  Serial.printf("PMCA firmware %s iniciado.\n", Config::FIRMWARE_VERSION);
   Serial.printf(
       "Sensor configurado no GPIO %u com %.1f pulsos por litro. Estado inicial: %s.\n",
       Config::SENSOR_PIN,

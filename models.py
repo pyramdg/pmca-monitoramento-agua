@@ -55,6 +55,9 @@ class Device(Base):
     last_reported_total = Column(Float, nullable=True)
     calculated_consumption = Column(Float, default=0.0, nullable=False)
     continuous_flow_since = Column(DateTime, nullable=True)
+    firmware_version = Column(String(32), nullable=True)
+    wifi_rssi = Column(Integer, nullable=True)
+    pending_queue = Column(Integer, nullable=True)
     created_at = Column(DateTime, default=utc_now, nullable=False)
 
     user = relationship("User", back_populates="devices")

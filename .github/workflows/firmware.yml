@@ -1,0 +1,31 @@
+name: Firmware
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "esp32/**"
+      - ".github/workflows/firmware.yml"
+  pull_request:
+    branches: [main]
+    paths:
+      - "esp32/**"
+      - ".github/workflows/firmware.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  compile:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: arduino/setup-arduino-cli@v2
+      - name: Install ESP32 platform
+        run: |
+          arduino-cli config init
+          arduino-cli core update-index --additional-urls https://espressif.github.io/arduino-esp32/package_esp32_index.json
+          arduino-cli core install esp32:esp32 --additional-urls https://espressif.github.io/arduino-esp32/package_esp32_index.json
+      - name: Compile firmware
+        run: arduino-cli compile --fqbn esp32:esp32:esp32 esp32/pmca_sensor

@@ -61,6 +61,10 @@ function renderDeviceStatus(summary) {
   $("#device-status-message").textContent = messages[status] || messages.aguardando;
   $("#today-readings").textContent = Number(summary.leituras_hoje || 0).toLocaleString("pt-BR");
   $("#water-state").textContent = waterLabels[device.situacao_agua] || "Sem dados";
+  const rssi = device.sinal_wifi;
+  $("#wifi-signal").textContent = rssi == null ? "Aguardando atualização" : `${rssi >= -60 ? "Forte" : rssi >= -75 ? "Regular" : "Fraco"} (${rssi} dBm)`;
+  $("#pending-queue").textContent = device.fila_pendente == null ? "Aguardando atualização" : `${device.fila_pendente} ${device.fila_pendente === 1 ? "leitura" : "leituras"}`;
+  $("#firmware-version").textContent = device.versao_firmware || "Anterior à versão 2.1";
 
   const lastSeen = $("#device-last-seen");
   lastSeen.textContent = formatElapsed(device.segundos_desde_comunicacao);
@@ -100,7 +104,7 @@ function renderDevices(devices) {
   list.innerHTML = devices.map((device) => `
     <article class="device-list-item" data-device-id="${device.id}" data-device-name="${escapeHtml(device.name)}">
       <div><strong>${escapeHtml(device.name)}</strong><span class="mini-status ${device.status}">${statusLabels[device.status] || device.status}</span></div>
-      <small>${formatNumber(device.calculated_consumption)} L registrados</small>
+      <small>${formatNumber(device.calculated_consumption)} L registrados${device.wifi_rssi == null ? "" : ` · Wi-Fi ${device.wifi_rssi} dBm`}</small>
       <div class="device-list-actions">
         <button type="button" class="ghost" data-action="rename">Renomear</button>
         <button type="button" class="ghost" data-action="rotate">Nova chave</button>

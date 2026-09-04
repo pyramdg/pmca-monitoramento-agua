@@ -67,6 +67,9 @@ def device_response(device: Device) -> dict:
         "created_at": device.created_at,
         "status": device_status,
         "seconds_since_contact": seconds_since_contact,
+        "firmware_version": device.firmware_version,
+        "wifi_rssi": device.wifi_rssi,
+        "pending_queue": device.pending_queue,
     }
 
 

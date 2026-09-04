@@ -39,6 +39,9 @@ class LeituraBase(BaseModel):
 class LeituraCreate(LeituraBase):
     event_id: Optional[str] = Field(default=None, min_length=8, max_length=96)
     measured_at: Optional[datetime] = None
+    firmware_version: Optional[str] = Field(default=None, min_length=1, max_length=32)
+    wifi_rssi: Optional[int] = Field(default=None, ge=-120, le=0)
+    queue_depth: Optional[int] = Field(default=None, ge=0, le=5000)
 
 
 class LeituraResponse(LeituraBase):
@@ -107,6 +110,9 @@ class DeviceResponse(BaseModel):
     created_at: datetime
     status: str = "aguardando"
     seconds_since_contact: Optional[int] = None
+    firmware_version: Optional[str] = None
+    wifi_rssi: Optional[int] = None
+    pending_queue: Optional[int] = None
 
 
 # ==================== SETTINGS ====================

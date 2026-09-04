@@ -224,12 +224,19 @@ class TestSensorAPI:
                 "fluxo_litros": 1.25,
                 "consumo_total": 10.5,
                 "measured_at": measured_at,
+                "firmware_version": "2.1.0",
+                "wifi_rssi": -58,
+                "queue_depth": 3,
             },
             headers={"Authorization": f"Bearer {api_key}"},
         )
 
         assert response.status_code == 200
         assert response.json()["timestamp"] == measured_at.removesuffix("Z")
+        db_session.refresh(device)
+        assert device.firmware_version == "2.1.0"
+        assert device.wifi_rssi == -58
+        assert device.pending_queue == 3
 
     def test_send_reading_no_auth(self):
         """✗ Falhar sem API key"""

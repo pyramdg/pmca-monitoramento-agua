@@ -145,6 +145,12 @@ def receber_leitura(
 
         device.last_reported_total = leitura.consumo_total
         device.calculated_consumption = calculated_consumption
+        if leitura.firmware_version is not None:
+            device.firmware_version = leitura.firmware_version
+        if leitura.wifi_rssi is not None:
+            device.wifi_rssi = leitura.wifi_rssi
+        if leitura.queue_depth is not None:
+            device.pending_queue = leitura.queue_depth
 
         if leitura.fluxo_litros >= LEAK_FLOW_THRESHOLD_L_MIN:
             gap_seconds = (
