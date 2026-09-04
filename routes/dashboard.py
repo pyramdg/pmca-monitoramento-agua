@@ -179,3 +179,90 @@ def historico_leituras(
     )
 
     return leituras
+
+
+@router.get("/analise")
+def analise_consumo(
+    dias: int = Query(default=7, ge=7, le=365),
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """Consumo diário agregado, comparação e projeção para o painel."""
+    now = utc_now()
+    today_start = now.replace(hour=0, minute=0, second=0, microsecond=0)
+    current_start = today_start - timedelta(days=dias - 1)
+    previous_start = current_start - timedelta(days=dias)
+
+    rows = (
+        db.query(
+            func.date(Leitura.timestamp).label("day"),
+            func.coalesce(func.sum(Leitura.volume_delta), 0.0).label("consumption"),
+        )
+        .filter(
+            Leitura.user_id == current_user.id,
+            Leitura.timestamp >= previous_start,
+        )
+        .group_by(func.date(Leitura.timestamp))
+        .order_by(func.date(Leitura.timestamp))
+        .all()
+    )
+    consumption_by_day = {str(row.day): float(row.consumption or 0) for row in rows}
+
+    daily = []
+    for offset in range(dias):
+        day = (current_start + timedelta(days=offset)).date().isoformat()
+        daily.append(
+            {"date": day, "consumption": round(consumption_by_day.get(day, 0), 3)}
+        )
+
+    current_consumption = sum(item["consumption"] for item in daily)
+    previous_consumption = 0.0
+    for offset in range(dias):
+        day = (previous_start + timedelta(days=offset)).date().isoformat()
+        previous_consumption += consumption_by_day.get(day, 0)
+
+    variation_percent = (
+        round(
+            ((current_consumption - previous_consumption) / previous_consumption) * 100,
+            1,
+        )
+        if previous_consumption > 0
+        else None
+    )
+
+    month_start = today_start.replace(day=1)
+    month_consumption = float(
+        db.query(func.coalesce(func.sum(Leitura.volume_delta), 0.0))
+        .filter(
+            Leitura.user_id == current_user.id,
+            Leitura.timestamp >= month_start,
+        )
+        .scalar()
+        or 0
+    )
+    elapsed_month_fraction = max(1.0, now.day - 1 + now.hour / 24)
+    projected_month = month_consumption / elapsed_month_fraction * 30.44
+    estimated_cost = (
+        month_consumption / 1000 * current_user.water_price_per_m3
+        if current_user.water_price_per_m3 is not None
+        else None
+    )
+    goal_percent = (
+        month_consumption / current_user.monthly_goal_liters * 100
+        if current_user.monthly_goal_liters
+        else None
+    )
+
+    return {
+        "days": dias,
+        "daily": daily,
+        "current_consumption": round(current_consumption, 3),
+        "previous_consumption": round(previous_consumption, 3),
+        "variation_percent": variation_percent,
+        "month_consumption": round(month_consumption, 3),
+        "projected_month": round(projected_month, 3),
+        "estimated_cost": (
+            round(estimated_cost, 2) if estimated_cost is not None else None
+        ),
+        "goal_percent": round(goal_percent, 1) if goal_percent is not None else None,
+    }

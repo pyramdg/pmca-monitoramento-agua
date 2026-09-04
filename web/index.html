@@ -53,14 +53,15 @@
       <section class="metrics" aria-label="Resumo de consumo">
         <article class="metric featured"><div class="metric-icon">L</div><p>Consumo acumulado</p><strong id="total">0,00 L</strong><small id="last-update">Sem leituras</small></article>
         <article class="metric"><div class="metric-icon">☀</div><p>Consumido hoje</p><strong id="today-total">0,00 L</strong><small>Volume registrado desde meia-noite</small></article>
-        <article class="metric"><div class="metric-icon">▦</div><p>Consumido no mês</p><strong id="month-total">0,00 L</strong><small>Volume registrado no mês atual</small></article>
+        <article class="metric"><div class="metric-icon">▦</div><p>Consumido no mês</p><strong id="month-total">0,00 L</strong><small id="month-detail">Volume registrado no mês atual</small></article>
         <article class="metric"><div class="metric-icon">↗</div><p>Vazão atual</p><strong id="flow">0,00 L/min</strong><small>Última medição recebida</small></article>
       </section>
 
       <section class="grid">
         <article class="panel chart-panel">
-          <div class="panel-head"><div><p class="eyebrow">Últimos 7 dias</p><h2>Histórico de consumo</h2></div><span id="reading-count" class="badge">0 leituras</span></div>
-          <div class="chart-wrap"><canvas id="chart" aria-label="Gráfico do consumo acumulado"></canvas><div id="empty-chart" class="empty">As leituras do sensor aparecerão aqui.</div></div>
+          <div class="panel-head"><div><p class="eyebrow">Análise por período</p><h2>Consumo diário</h2></div><div class="period-filter" aria-label="Período do gráfico"><button type="button" class="active" data-days="7">7 dias</button><button type="button" data-days="30">30 dias</button><button type="button" data-days="90">90 dias</button></div></div>
+          <div class="chart-wrap"><canvas id="chart" aria-label="Gráfico do consumo diário"></canvas><div id="empty-chart" class="empty">As leituras do sensor aparecerão aqui.</div></div>
+          <div class="analysis-footer"><span id="period-total">0,00 L no período</span><span id="period-comparison">Comparação disponível após mais dados</span></div>
         </article>
 
         <aside class="panel device-panel">
@@ -92,6 +93,16 @@
             <form id="add-device-form" class="add-device-form">
               <label>Nome do novo medidor<input id="new-device-name" maxlength="80" required placeholder="Ex.: Entrada principal"></label>
               <button class="secondary full" type="submit">Adicionar medidor</button>
+            </form>
+          </div>
+
+          <div class="account-settings">
+            <h3>Meta e estimativa</h3>
+            <p>Use os valores da sua conta de água. Eles podem ser alterados a qualquer momento.</p>
+            <form id="settings-form">
+              <label>Meta mensal (litros)<input id="monthly-goal" type="number" min="1" step="1" placeholder="Ex.: 12000"></label>
+              <label>Tarifa aproximada (R$/m³)<input id="water-price" type="number" min="0" step="0.01" placeholder="Ex.: 8,50"></label>
+              <button class="secondary full" type="submit">Salvar meta e tarifa</button>
             </form>
           </div>
         </aside>

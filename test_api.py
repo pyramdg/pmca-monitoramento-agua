@@ -503,6 +503,46 @@ class TestDashboard:
         data = response.json()
         assert len(data) == 5
 
+    def test_analytics_aggregates_and_compares_periods(
+        self, test_user, db_session, auth_headers
+    ):
+        now = utc_now()
+        db_session.add_all(
+            [
+                Leitura(
+                    user_id=test_user.id,
+                    fluxo_litros=1,
+                    consumo_total=10,
+                    volume_delta=1,
+                    timestamp=now,
+                ),
+                Leitura(
+                    user_id=test_user.id,
+                    fluxo_litros=1,
+                    consumo_total=12,
+                    volume_delta=2,
+                    timestamp=now,
+                ),
+                Leitura(
+                    user_id=test_user.id,
+                    fluxo_litros=1,
+                    consumo_total=7,
+                    volume_delta=2,
+                    timestamp=now - timedelta(days=8),
+                ),
+            ]
+        )
+        db_session.commit()
+
+        response = client.get("/dashboard/analise?dias=7", headers=auth_headers)
+
+        assert response.status_code == 200
+        data = response.json()
+        assert len(data["daily"]) == 7
+        assert data["current_consumption"] == 3
+        assert data["previous_consumption"] == 2
+        assert data["variation_percent"] == 50
+
 
 class TestDevices:
     def test_create_list_rename_disable_and_rotate_key(
@@ -569,6 +609,22 @@ class TestDevices:
             headers=auth_headers,
         )
         assert response.status_code == 404
+
+
+class TestSettings:
+    def test_user_updates_goal_and_water_price(self, test_user, auth_headers):
+        updated = client.patch(
+            "/settings",
+            json={"monthly_goal_liters": 12000, "water_price_per_m3": 8.5},
+            headers=auth_headers,
+        )
+        assert updated.status_code == 200
+        assert updated.json()["monthly_goal_liters"] == 12000
+        assert updated.json()["water_price_per_m3"] == 8.5
+
+        loaded = client.get("/settings", headers=auth_headers)
+        assert loaded.status_code == 200
+        assert loaded.json() == updated.json()
 
 
 def test_dashboard_web_is_available():

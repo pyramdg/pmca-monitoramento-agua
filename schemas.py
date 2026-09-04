@@ -107,3 +107,11 @@ class DeviceResponse(BaseModel):
     created_at: datetime
     status: str = "aguardando"
     seconds_since_contact: Optional[int] = None
+
+
+# ==================== SETTINGS ====================
+
+
+class UserSettings(BaseModel):
+    monthly_goal_liters: Optional[float] = Field(default=None, gt=0, le=10_000_000)
+    water_price_per_m3: Optional[float] = Field(default=None, ge=0, le=100_000)

@@ -4,6 +4,8 @@ const state = {
   legacyRefreshToken: localStorage.getItem("pmca_refresh"),
   apiKey: null,
   readings: [],
+  days: 7,
+  settingsLoaded: false,
 };
 localStorage.removeItem("pmca_access");
 localStorage.removeItem("pmca_refresh");
@@ -181,17 +183,27 @@ $("#auth-form").addEventListener("submit", async (event) => {
 
 async function loadDashboard() {
   try {
-    const [summary, readings, devices] = await Promise.all([request("/dashboard/resumo"), request("/dashboard/historico?dias=7"), request("/devices")]);
-    state.readings = readings;
+    const [summary, analysis, devices, settings] = await Promise.all([request("/dashboard/resumo"), request(`/dashboard/analise?dias=${state.days}`), request("/devices"), request("/settings")]);
+    state.readings = analysis.daily;
     $("#total").textContent = `${formatNumber(summary.consumo_total)} L`;
     $("#today-total").textContent = `${formatNumber(summary.consumo_hoje)} L`;
     $("#month-total").textContent = `${formatNumber(summary.consumo_mes)} L`;
+    const monthDetails = [];
+    if (analysis.estimated_cost != null) monthDetails.push(`Custo: ${Number(analysis.estimated_cost).toLocaleString("pt-BR", {style: "currency", currency: "BRL"})}`);
+    if (analysis.goal_percent != null) monthDetails.push(`${formatNumber(analysis.goal_percent)}% da meta`);
+    $("#month-detail").textContent = monthDetails.join(" · ") || "Configure sua meta e tarifa abaixo";
     $("#flow").textContent = `${formatNumber(summary.ultimo_fluxo)} L/min`;
     $("#last-update").textContent = summary.timestamp_ultima ? `Atualizado em ${parseUtc(summary.timestamp_ultima).toLocaleString("pt-BR")}` : "Sem leituras";
-    $("#reading-count").textContent = `${readings.length} ${readings.length === 1 ? "leitura" : "leituras"}`;
+    $("#period-total").textContent = `${formatNumber(analysis.current_consumption)} L no período`;
+    $("#period-comparison").textContent = analysis.variation_percent == null ? "Comparação disponível após mais dados" : `${Math.abs(analysis.variation_percent).toLocaleString("pt-BR")} % ${analysis.variation_percent <= 0 ? "abaixo" : "acima"} do período anterior`;
+    if (!state.settingsLoaded) {
+      $("#monthly-goal").value = settings.monthly_goal_liters ?? "";
+      $("#water-price").value = settings.water_price_per_m3 ?? "";
+      state.settingsLoaded = true;
+    }
     renderDeviceStatus(summary);
     renderDevices(devices);
-    drawChart(readings);
+    drawChart(analysis.daily);
   } catch (err) {
     if (err.message.includes("Token") || err.message.includes("autentic")) { clearSession(); showAuth(); }
   }
@@ -205,7 +217,7 @@ function drawChart(readings) {
   canvas.width = rect.width * ratio; canvas.height = rect.height * ratio;
   const ctx = canvas.getContext("2d"); ctx.scale(ratio, ratio);
   const width = rect.width, height = rect.height, pad = {t: 20, r: 16, b: 36, l: 48};
-  const values = readings.map((item) => Math.max(0, Number(item.calculated_consumption ?? item.consumo_total) || 0));
+  const values = readings.map((item) => Math.max(0, Number(item.consumption) || 0));
   // Uma única leitura deve formar uma linha estável, não um triângulo até o
   // rodapé do gráfico. Repita apenas o ponto visual, sem alterar os dados.
   const plotValues = values.length === 1 ? [values[0], values[0]] : values;
@@ -221,10 +233,15 @@ function drawChart(readings) {
   const gradient = ctx.createLinearGradient(0,pad.t,0,height-pad.b); gradient.addColorStop(0,"rgba(57,198,203,.32)"); gradient.addColorStop(1,"rgba(57,198,203,0)");
   ctx.beginPath(); plotValues.forEach((v,i) => { const p=point(v,i); i ? ctx.lineTo(p.x,p.y) : ctx.moveTo(p.x,p.y); }); ctx.lineTo(width-pad.r,height-pad.b); ctx.lineTo(pad.l,height-pad.b); ctx.closePath(); ctx.fillStyle=gradient; ctx.fill();
   ctx.beginPath(); plotValues.forEach((v,i) => { const p=point(v,i); i ? ctx.lineTo(p.x,p.y) : ctx.moveTo(p.x,p.y); }); ctx.strokeStyle="#0b819b"; ctx.lineWidth=3; ctx.lineJoin="round"; ctx.stroke();
-  const first = parseUtc(readings[0].timestamp); const last = parseUtc(readings[readings.length-1].timestamp); ctx.fillStyle="#82939d"; ctx.fillText(first.toLocaleDateString("pt-BR"),pad.l,height-9); const label=last.toLocaleDateString("pt-BR"); ctx.fillText(label,width-pad.r-ctx.measureText(label).width,height-9);
+  const first = parseUtc(readings[0].date); const last = parseUtc(readings[readings.length-1].date); ctx.fillStyle="#82939d"; ctx.fillText(first.toLocaleDateString("pt-BR"),pad.l,height-9); const label=last.toLocaleDateString("pt-BR"); ctx.fillText(label,width-pad.r-ctx.measureText(label).width,height-9);
 }
 
 $("#refresh").addEventListener("click", loadDashboard);
+document.querySelectorAll("[data-days]").forEach((button) => button.addEventListener("click", () => {
+  state.days = Number(button.dataset.days);
+  document.querySelectorAll("[data-days]").forEach((item) => item.classList.toggle("active", item === button));
+  loadDashboard();
+}));
 $("#logout").addEventListener("click", async () => { try { await fetch("/auth/logout", {method: "POST"}); } finally { clearSession(); showAuth(); } });
 $("#generate-key").addEventListener("click", async () => {
   const message = $("#device-message"); message.textContent = ""; message.classList.remove("error");
@@ -273,6 +290,19 @@ $("#device-list").addEventListener("click", async (event) => {
     await loadDashboard();
   } catch (err) { message.textContent = err.message; message.classList.add("error"); }
   finally { button.disabled = false; }
+});
+
+$("#settings-form").addEventListener("submit", async (event) => {
+  event.preventDefault();
+  const message = $("#device-message");
+  const goal = $("#monthly-goal").value;
+  const price = $("#water-price").value;
+  try {
+    await request("/settings", {method: "PATCH", body: JSON.stringify({monthly_goal_liters: goal ? Number(goal) : null, water_price_per_m3: price ? Number(price) : null})});
+    message.textContent = "Meta e tarifa atualizadas.";
+    message.classList.remove("error");
+    await loadDashboard();
+  } catch (err) { message.textContent = err.message; message.classList.add("error"); }
 });
 $("#copy-key").addEventListener("click", async () => { await navigator.clipboard.writeText(state.apiKey || ""); $("#device-message").textContent="Chave copiada."; });
 $("#reading-form").addEventListener("submit", async (event) => {

@@ -24,6 +24,8 @@ class User(Base):
     is_active = Column(Boolean, default=True)
     api_key = Column(String, unique=True, index=True, nullable=True)
     api_key_expires_at = Column(DateTime, nullable=True)
+    monthly_goal_liters = Column(Float, nullable=True)
+    water_price_per_m3 = Column(Float, nullable=True)
     created_at = Column(DateTime, default=utc_now)
 
     # Relacionamento
