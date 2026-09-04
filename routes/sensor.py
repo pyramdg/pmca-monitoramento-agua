@@ -7,6 +7,7 @@ from database import get_db
 from models import Device, User, Leitura
 from schemas import LeituraCreate, LeituraResponse
 from auth_utils import hash_api_key, utc_naive, utc_now
+from config import LEAK_FLOW_THRESHOLD_L_MIN, LEAK_READING_MAX_GAP_SECONDS
 
 router = APIRouter(prefix="/api", tags=["sensor"])
 
@@ -80,6 +81,13 @@ def receber_leitura(
     ```
     """
     current_user, device = identity
+    if device:
+        # Serializa atualizações concorrentes do mesmo medidor para que dois
+        # envios simultâneos não somem o mesmo intervalo incorretamente.
+        device = (
+            db.query(Device).filter(Device.id == device.id).with_for_update().first()
+        )
+
     if leitura.event_id and device:
         existente = (
             db.query(Leitura)
@@ -104,12 +112,64 @@ def receber_leitura(
     if measured_at > utc_now() + timedelta(minutes=5):
         raise HTTPException(status_code=422, detail="Horário da medição inválido")
 
+    previous_reading = None
+    volume_delta = 0.0
+    calculated_consumption = leitura.consumo_total
+
+    if device:
+        previous_reading = (
+            db.query(Leitura)
+            .filter(Leitura.device_id == device.id)
+            .order_by(Leitura.timestamp.desc(), Leitura.id.desc())
+            .first()
+        )
+        previous_total = device.last_reported_total
+        if previous_total is None:
+            # Na primeira leitura, adota o total já guardado pelo ESP32 como
+            # ponto inicial. Depois disso soma somente o volume de cada intervalo.
+            calculated_consumption = max(
+                float(device.calculated_consumption or 0), leitura.consumo_total
+            )
+        elif leitura.consumo_total + 0.001 >= previous_total:
+            volume_delta = max(0.0, leitura.consumo_total - previous_total)
+            calculated_consumption = (
+                float(device.calculated_consumption or 0) + volume_delta
+            )
+        else:
+            # O contador bruto diminuiu: o ESP reiniciou ou perdeu seu total.
+            # O servidor preserva o histórico e soma apenas o novo ciclo.
+            volume_delta = leitura.consumo_total
+            calculated_consumption = (
+                float(device.calculated_consumption or 0) + volume_delta
+            )
+
+        device.last_reported_total = leitura.consumo_total
+        device.calculated_consumption = calculated_consumption
+
+        if leitura.fluxo_litros >= LEAK_FLOW_THRESHOLD_L_MIN:
+            gap_seconds = (
+                (measured_at - previous_reading.timestamp).total_seconds()
+                if previous_reading
+                else None
+            )
+            if (
+                device.continuous_flow_since is None
+                or gap_seconds is None
+                or gap_seconds < 0
+                or gap_seconds > LEAK_READING_MAX_GAP_SECONDS
+            ):
+                device.continuous_flow_since = measured_at
+        else:
+            device.continuous_flow_since = None
+
     nova_leitura = Leitura(
         user_id=current_user.id,
         device_id=device.id if device else None,
         event_id=leitura.event_id,
         fluxo_litros=leitura.fluxo_litros,
         consumo_total=leitura.consumo_total,
+        volume_delta=volume_delta,
+        calculated_consumption=calculated_consumption,
         timestamp=measured_at,
         received_at=utc_now(),
     )

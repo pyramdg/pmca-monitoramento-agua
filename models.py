@@ -50,6 +50,9 @@ class Device(Base):
     api_key_expires_at = Column(DateTime, nullable=True)
     is_active = Column(Boolean, default=True, nullable=False)
     last_seen_at = Column(DateTime, nullable=True)
+    last_reported_total = Column(Float, nullable=True)
+    calculated_consumption = Column(Float, default=0.0, nullable=False)
+    continuous_flow_since = Column(DateTime, nullable=True)
     created_at = Column(DateTime, default=utc_now, nullable=False)
 
     user = relationship("User", back_populates="devices")
@@ -67,6 +70,8 @@ class Leitura(Base):
     event_id = Column(String(96), nullable=True)
     fluxo_litros = Column(Float, nullable=False)  # Vazão instantânea em L/min
     consumo_total = Column(Float, nullable=False)  # Consumo acumulado em L
+    volume_delta = Column(Float, default=0.0, nullable=False)
+    calculated_consumption = Column(Float, nullable=True)
     timestamp = Column(DateTime, default=utc_now, index=True)  # horário da medição
     received_at = Column(DateTime, default=utc_now, nullable=False)
 

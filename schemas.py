@@ -48,6 +48,8 @@ class LeituraResponse(LeituraBase):
     user_id: int
     device_id: Optional[int] = None
     event_id: Optional[str] = None
+    volume_delta: float = 0.0
+    calculated_consumption: Optional[float] = None
     timestamp: datetime
 
 

@@ -6,7 +6,11 @@ from sqlalchemy import func
 from sqlalchemy.orm import Session
 
 from auth_utils import extract_user_id_from_token, utc_now
-from config import DEVICE_ONLINE_TIMEOUT_SECONDS
+from config import (
+    DEVICE_ONLINE_TIMEOUT_SECONDS,
+    LEAK_DURATION_MINUTES,
+    LEAK_READING_MAX_GAP_SECONDS,
+)
 from database import get_db
 from models import Device, User, Leitura
 from schemas import LeituraResponse
@@ -69,7 +73,8 @@ def resumo_consumo(
     )
 
     # Leituras de hoje
-    hoje = utc_now().date()
+    now = utc_now()
+    hoje = now.date()
     leituras_hoje = (
         db.query(Leitura)
         .filter(
@@ -83,6 +88,25 @@ def resumo_consumo(
         sum(leitura.fluxo_litros for leitura in leituras_hoje) / len(leituras_hoje)
         if leituras_hoje
         else 0
+    )
+
+    inicio_hoje = now.replace(hour=0, minute=0, second=0, microsecond=0)
+    inicio_mes = inicio_hoje.replace(day=1)
+    consumo_hoje = (
+        db.query(func.coalesce(func.sum(Leitura.volume_delta), 0.0))
+        .filter(
+            Leitura.user_id == current_user.id,
+            Leitura.timestamp >= inicio_hoje,
+        )
+        .scalar()
+    )
+    consumo_mes = (
+        db.query(func.coalesce(func.sum(Leitura.volume_delta), 0.0))
+        .filter(
+            Leitura.user_id == current_user.id,
+            Leitura.timestamp >= inicio_mes,
+        )
+        .scalar()
     )
 
     device = (
@@ -100,9 +124,7 @@ def resumo_consumo(
         else (ultima_leitura.received_at if ultima_leitura else None)
     )
     seconds_since_contact = (
-        max(0, int((utc_now() - last_contact).total_seconds()))
-        if last_contact
-        else None
+        max(0, int((now - last_contact).total_seconds())) if last_contact else None
     )
 
     if not device and not ultima_leitura:
@@ -124,8 +146,34 @@ def resumo_consumo(
     else:
         water_status = "sem_fluxo"
 
+    measurement_age = (
+        max(0, int((now - ultima_leitura.timestamp).total_seconds()))
+        if ultima_leitura
+        else None
+    )
+    continuous_flow_seconds = (
+        max(0, int((now - device.continuous_flow_since).total_seconds()))
+        if device and device.continuous_flow_since
+        else 0
+    )
+    possible_leak = bool(
+        device_status == "online"
+        and measurement_age is not None
+        and measurement_age <= LEAK_READING_MAX_GAP_SECONDS
+        and continuous_flow_seconds >= LEAK_DURATION_MINUTES * 60
+    )
+
+    if device and device.last_reported_total is not None:
+        reliable_total = float(device.calculated_consumption or 0)
+    elif ultima_leitura and ultima_leitura.calculated_consumption is not None:
+        reliable_total = ultima_leitura.calculated_consumption
+    else:
+        reliable_total = ultima_leitura.consumo_total if ultima_leitura else 0
+
     return {
-        "consumo_total": ultima_leitura.consumo_total if ultima_leitura else 0,
+        "consumo_total": round(reliable_total, 3),
+        "consumo_hoje": round(float(consumo_hoje or 0), 3),
+        "consumo_mes": round(float(consumo_mes or 0), 3),
         "ultimo_fluxo": latest_flow,
         "media_hoje": round(media_hoje, 2),
         "timestamp_ultima": ultima_leitura.timestamp if ultima_leitura else None,
@@ -137,6 +185,9 @@ def resumo_consumo(
             "segundos_desde_comunicacao": seconds_since_contact,
             "limite_online_segundos": DEVICE_ONLINE_TIMEOUT_SECONDS,
             "situacao_agua": water_status,
+            "possivel_vazamento": possible_leak,
+            "fluxo_continuo_minutos": continuous_flow_seconds // 60,
+            "limite_vazamento_minutos": LEAK_DURATION_MINUTES,
         },
     }
 

@@ -276,6 +276,77 @@ class TestSensorAPI:
         db_session.refresh(device)
         assert device.last_seen_at is not None
 
+    def test_server_preserves_total_when_esp32_restarts(self, test_user, db_session):
+        api_key = "device-key-reset-counter"
+        device = Device(
+            user_id=test_user.id,
+            name="Medidor principal",
+            api_key_hash=hash_api_key(api_key),
+        )
+        db_session.add(device)
+        db_session.commit()
+        headers = {"Authorization": f"Bearer {api_key}"}
+
+        for event_id, raw_total in (
+            ("RESET-TEST-EVENT-0001", 100.0),
+            ("RESET-TEST-EVENT-0002", 105.0),
+            ("RESET-TEST-EVENT-0003", 2.0),
+        ):
+            response = client.post(
+                "/api/leitura",
+                json={
+                    "event_id": event_id,
+                    "fluxo_litros": 1.0,
+                    "consumo_total": raw_total,
+                },
+                headers=headers,
+            )
+            assert response.status_code == 200
+
+        db_session.refresh(device)
+        assert device.last_reported_total == 2.0
+        assert device.calculated_consumption == 107.0
+        readings = db_session.query(Leitura).order_by(Leitura.id).all()
+        assert [reading.volume_delta for reading in readings] == [0.0, 5.0, 2.0]
+        assert readings[-1].calculated_consumption == 107.0
+
+    def test_zero_flow_clears_continuous_flow(self, test_user, db_session):
+        api_key = "device-key-flow-state"
+        device = Device(
+            user_id=test_user.id,
+            name="Medidor principal",
+            api_key_hash=hash_api_key(api_key),
+        )
+        db_session.add(device)
+        db_session.commit()
+        headers = {"Authorization": f"Bearer {api_key}"}
+
+        flowing = client.post(
+            "/api/leitura",
+            json={
+                "event_id": "FLOW-STATE-EVENT-0001",
+                "fluxo_litros": 1.0,
+                "consumo_total": 10.0,
+            },
+            headers=headers,
+        )
+        assert flowing.status_code == 200
+        db_session.refresh(device)
+        assert device.continuous_flow_since is not None
+
+        stopped = client.post(
+            "/api/leitura",
+            json={
+                "event_id": "FLOW-STATE-EVENT-0002",
+                "fluxo_litros": 0.0,
+                "consumo_total": 10.0,
+            },
+            headers=headers,
+        )
+        assert stopped.status_code == 200
+        db_session.refresh(device)
+        assert device.continuous_flow_since is None
+
 
 class TestDashboard:
     """Testes do dashboard"""
@@ -328,6 +399,40 @@ class TestDashboard:
         assert data["dispositivo"]["status"] == "offline"
         assert data["dispositivo"]["segundos_desde_comunicacao"] >= 46
         assert data["dispositivo"]["situacao_agua"] == "sem_dados"
+
+    def test_resumo_warns_about_continuous_flow(
+        self, test_user, db_session, auth_headers
+    ):
+        now = utc_now()
+        device = Device(
+            user_id=test_user.id,
+            name="Medidor externo",
+            api_key_hash=hash_api_key("leak-device-key"),
+            last_seen_at=now,
+            continuous_flow_since=now - timedelta(minutes=31),
+            last_reported_total=20.0,
+            calculated_consumption=20.0,
+        )
+        db_session.add(device)
+        db_session.flush()
+        db_session.add(
+            Leitura(
+                user_id=test_user.id,
+                device_id=device.id,
+                fluxo_litros=0.5,
+                consumo_total=20.0,
+                calculated_consumption=20.0,
+                timestamp=now,
+            )
+        )
+        db_session.commit()
+
+        response = client.get("/dashboard/resumo", headers=auth_headers)
+
+        assert response.status_code == 200
+        data = response.json()
+        assert data["dispositivo"]["possivel_vazamento"] is True
+        assert data["dispositivo"]["fluxo_continuo_minutos"] >= 31
 
     def test_historico(self, test_user, db_session, auth_headers):
         """✓ Obter histórico de leituras"""

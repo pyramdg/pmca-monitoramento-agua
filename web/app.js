@@ -64,7 +64,10 @@ function renderDeviceStatus(summary) {
   lastSeen.title = lastSeenDate ? lastSeenDate.toLocaleString("pt-BR") : "Nenhuma comunicação recebida";
 
   const alert = $("#device-alert");
-  if (status === "offline") {
+  if (device.possivel_vazamento) {
+    alert.textContent = `Possível vazamento: há fluxo contínuo há ${device.fluxo_continuo_minutos} min. Verifique torneiras, válvulas e tubulações.`;
+    alert.className = "device-alert danger";
+  } else if (status === "offline") {
     alert.textContent = "O painel continua mostrando o histórico salvo. Novas leituras aparecerão quando o aparelho reconectar.";
     alert.className = "device-alert warning";
   } else if (status === "aguardando" || status === "nao_configurado") {
@@ -147,8 +150,9 @@ async function loadDashboard() {
     const [summary, readings] = await Promise.all([request("/dashboard/resumo"), request("/dashboard/historico?dias=7")]);
     state.readings = readings;
     $("#total").textContent = `${formatNumber(summary.consumo_total)} L`;
+    $("#today-total").textContent = `${formatNumber(summary.consumo_hoje)} L`;
+    $("#month-total").textContent = `${formatNumber(summary.consumo_mes)} L`;
     $("#flow").textContent = `${formatNumber(summary.ultimo_fluxo)} L/min`;
-    $("#average").textContent = `${formatNumber(summary.media_hoje)} L/min`;
     $("#last-update").textContent = summary.timestamp_ultima ? `Atualizado em ${parseUtc(summary.timestamp_ultima).toLocaleString("pt-BR")}` : "Sem leituras";
     $("#reading-count").textContent = `${readings.length} ${readings.length === 1 ? "leitura" : "leituras"}`;
     renderDeviceStatus(summary);
@@ -166,7 +170,7 @@ function drawChart(readings) {
   canvas.width = rect.width * ratio; canvas.height = rect.height * ratio;
   const ctx = canvas.getContext("2d"); ctx.scale(ratio, ratio);
   const width = rect.width, height = rect.height, pad = {t: 20, r: 16, b: 36, l: 48};
-  const values = readings.map((item) => Math.max(0, Number(item.consumo_total) || 0));
+  const values = readings.map((item) => Math.max(0, Number(item.calculated_consumption ?? item.consumo_total) || 0));
   // Uma única leitura deve formar uma linha estável, não um triângulo até o
   // rodapé do gráfico. Repita apenas o ponto visual, sem alterar os dados.
   const plotValues = values.length === 1 ? [values[0], values[0]] : values;

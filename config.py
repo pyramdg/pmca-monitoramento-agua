@@ -40,6 +40,17 @@ DEVICE_ONLINE_TIMEOUT_SECONDS = max(
     20, int(os.getenv("DEVICE_ONLINE_TIMEOUT_SECONDS", "45"))
 )
 
+# Um fluxo pequeno pode ser apenas ruído do sensor. O alerta só é ativado
+# quando a vazão permanece acima deste limite pelo tempo configurado.
+LEAK_FLOW_THRESHOLD_L_MIN = max(
+    0.0, float(os.getenv("LEAK_FLOW_THRESHOLD_L_MIN", "0.10"))
+)
+LEAK_DURATION_MINUTES = max(1, int(os.getenv("LEAK_DURATION_MINUTES", "30")))
+LEAK_READING_MAX_GAP_SECONDS = max(
+    DEVICE_ONLINE_TIMEOUT_SECONDS,
+    int(os.getenv("LEAK_READING_MAX_GAP_SECONDS", "90")),
+)
+
 # CORS
 ALLOWED_ORIGINS = os.getenv(
     "ALLOWED_ORIGINS", "http://localhost:3000,http://localhost:5000"
