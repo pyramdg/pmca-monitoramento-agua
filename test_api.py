@@ -7,6 +7,7 @@ from datetime import timedelta, timezone
 from conftest import client
 from models import Device, Leitura
 from auth_utils import create_refresh_token, hash_api_key, utc_now
+from config import LOGIN_MAX_FAILURES
 
 
 class TestAuth:
@@ -125,6 +126,56 @@ class TestAuth:
         access_token = auth_headers["Authorization"].split()[1]
         response = client.post("/auth/refresh", json={"refresh_token": access_token})
         assert response.status_code == 401
+
+    def test_browser_session_uses_protected_refresh_cookie(self, test_user):
+        from fastapi.testclient import TestClient
+        from main import app
+
+        with TestClient(app) as browser:
+            login = browser.post(
+                "/auth/login",
+                json={"email": "test@example.com", "password": "password123"},
+            )
+            assert login.status_code == 200
+            cookie = login.headers["set-cookie"]
+            assert "pmca_refresh=" in cookie
+            assert "HttpOnly" in cookie
+
+            refreshed = browser.post("/auth/refresh")
+            assert refreshed.status_code == 200
+            assert "access_token" in refreshed.json()
+
+            logout = browser.post("/auth/logout")
+            assert logout.status_code == 204
+            assert browser.post("/auth/refresh").status_code == 401
+
+    def test_login_temporarily_blocks_repeated_failures(self, db_session):
+        from auth_utils import hash_password
+        from models import User
+
+        email = "rate-limit@example.com"
+        db_session.add(
+            User(
+                email=email,
+                password_hash=hash_password("correct-password"),
+                is_active=True,
+            )
+        )
+        db_session.commit()
+
+        for _ in range(LOGIN_MAX_FAILURES):
+            failed = client.post(
+                "/auth/login",
+                json={"email": email, "password": "wrong-password"},
+            )
+            assert failed.status_code == 401
+
+        blocked = client.post(
+            "/auth/login",
+            json={"email": email, "password": "correct-password"},
+        )
+        assert blocked.status_code == 429
+        assert "Retry-After" in blocked.headers
 
 
 class TestSensorAPI:

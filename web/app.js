@@ -1,10 +1,12 @@
 const state = {
   mode: "login",
   accessToken: localStorage.getItem("pmca_access"),
-  refreshToken: localStorage.getItem("pmca_refresh"),
+  legacyRefreshToken: localStorage.getItem("pmca_refresh"),
   apiKey: null,
   readings: [],
 };
+localStorage.removeItem("pmca_access");
+localStorage.removeItem("pmca_refresh");
 
 const $ = (selector) => document.querySelector(selector);
 const authView = $("#auth-view");
@@ -115,7 +117,7 @@ async function request(path, options = {}, allowRefresh = true) {
   const headers = {"Content-Type": "application/json", ...(options.headers || {})};
   if (state.accessToken && !headers.Authorization) headers.Authorization = `Bearer ${state.accessToken}`;
   const response = await fetch(path, {...options, headers});
-  if (response.status === 401 && allowRefresh && state.refreshToken) {
+  if (response.status === 401 && allowRefresh) {
     const refreshed = await refreshSession();
     if (refreshed) return request(path, options, false);
   }
@@ -126,24 +128,24 @@ async function request(path, options = {}, allowRefresh = true) {
 
 async function refreshSession() {
   try {
-    const response = await fetch("/auth/refresh", {method: "POST", headers: {"Content-Type": "application/json"}, body: JSON.stringify({refresh_token: state.refreshToken})});
+    const options = {method: "POST", headers: {"Content-Type": "application/json"}};
+    if (state.legacyRefreshToken) options.body = JSON.stringify({refresh_token: state.legacyRefreshToken});
+    const response = await fetch("/auth/refresh", options);
     if (!response.ok) return false;
     const data = await response.json();
     state.accessToken = data.access_token;
-    localStorage.setItem("pmca_access", data.access_token);
+    state.legacyRefreshToken = null;
     return true;
   } catch { return false; }
 }
 
 function saveSession(data) {
   state.accessToken = data.access_token;
-  state.refreshToken = data.refresh_token;
-  localStorage.setItem("pmca_access", data.access_token);
-  localStorage.setItem("pmca_refresh", data.refresh_token);
+  state.legacyRefreshToken = null;
 }
 
 function clearSession() {
-  state.accessToken = null; state.refreshToken = null; state.apiKey = null;
+  state.accessToken = null; state.legacyRefreshToken = null; state.apiKey = null;
   localStorage.removeItem("pmca_access"); localStorage.removeItem("pmca_refresh");
 }
 
@@ -223,7 +225,7 @@ function drawChart(readings) {
 }
 
 $("#refresh").addEventListener("click", loadDashboard);
-$("#logout").addEventListener("click", () => { clearSession(); showAuth(); });
+$("#logout").addEventListener("click", async () => { try { await fetch("/auth/logout", {method: "POST"}); } finally { clearSession(); showAuth(); } });
 $("#generate-key").addEventListener("click", async () => {
   const message = $("#device-message"); message.textContent = ""; message.classList.remove("error");
   try { const data = await request("/auth/api-key", {method:"POST"}); showGeneratedKey(data); message.textContent="Chave criada com sucesso."; await loadDashboard(); }
@@ -283,7 +285,7 @@ window.addEventListener("resize", () => state.readings.length && drawChart(state
 setInterval(() => !dashboardView.classList.contains("hidden") && loadDashboard(), 15000);
 
 (async function start() {
-  if (!state.accessToken) return showAuth();
-  try { const user = await request("/auth/me"); showDashboard(user); }
+  if (!state.accessToken && !(await refreshSession())) return showAuth();
+  try { const user = await request("/auth/me"); showDashboard(user); if (state.legacyRefreshToken) await refreshSession(); }
   catch { clearSession(); showAuth(); }
 })();

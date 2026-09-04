@@ -1,4 +1,13 @@
-from fastapi import APIRouter, Depends, HTTPException, status, Header
+from fastapi import (
+    APIRouter,
+    Body,
+    Cookie,
+    Depends,
+    Header,
+    HTTPException,
+    Response,
+    status,
+)
 from sqlalchemy.orm import Session
 from datetime import timedelta
 import secrets
@@ -13,7 +22,12 @@ from schemas import (
     APIKeyResponse,
     RefreshTokenRequest,
 )
-from config import API_KEY_EXPIRATION
+from config import (
+    API_KEY_EXPIRATION,
+    LOGIN_MAX_FAILURES,
+    LOGIN_WINDOW_SECONDS,
+    SESSION_COOKIE_SECURE,
+)
 from auth_utils import (
     hash_password,
     verify_password,
@@ -23,8 +37,24 @@ from auth_utils import (
     hash_api_key,
     utc_now,
 )
+from rate_limit import FailureRateLimiter
 
 router = APIRouter(prefix="/auth", tags=["auth"])
+login_limiter = FailureRateLimiter(LOGIN_MAX_FAILURES, LOGIN_WINDOW_SECONDS)
+REFRESH_COOKIE = "pmca_refresh"
+REFRESH_COOKIE_MAX_AGE = 30 * 24 * 60 * 60
+
+
+def set_refresh_cookie(response: Response, refresh_token: str) -> None:
+    response.set_cookie(
+        key=REFRESH_COOKIE,
+        value=refresh_token,
+        max_age=REFRESH_COOKIE_MAX_AGE,
+        httponly=True,
+        secure=SESSION_COOKIE_SECURE,
+        samesite="lax",
+        path="/auth",
+    )
 
 
 @router.post("/register", response_model=UserResponse)
@@ -60,7 +90,11 @@ def register(user_data: UserCreate, db: Session = Depends(get_db)):
 
 
 @router.post("/login", response_model=TokenResponse)
-def login(credentials: LoginRequest, db: Session = Depends(get_db)):
+def login(
+    credentials: LoginRequest,
+    response: Response,
+    db: Session = Depends(get_db),
+):
     """
     Login com email e senha, retorna JWT access token.
 
@@ -71,9 +105,19 @@ def login(credentials: LoginRequest, db: Session = Depends(get_db)):
       -d '{"email":"user@example.com","password":"senha123"}'
     ```
     """
+    login_key = credentials.email.strip().lower()
+    retry_after = login_limiter.retry_after(login_key)
+    if retry_after:
+        raise HTTPException(
+            status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+            detail="Muitas tentativas. Aguarde alguns minutos e tente novamente.",
+            headers={"Retry-After": str(retry_after)},
+        )
+
     user = db.query(User).filter(User.email == credentials.email).first()
 
     if not user or not verify_password(credentials.password, user.password_hash):
+        login_limiter.record_failure(login_key)
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Email ou senha inválidos",
@@ -85,9 +129,11 @@ def login(credentials: LoginRequest, db: Session = Depends(get_db)):
             detail="Usuário desativado",
         )
 
+    login_limiter.clear(login_key)
     # Criar JWT tokens
     access_token = create_access_token(data={"sub": str(user.id), "email": user.email})
     refresh_token = create_refresh_token(user.id)
+    set_refresh_cookie(response, refresh_token)
 
     return {
         "access_token": access_token,
@@ -99,7 +145,9 @@ def login(credentials: LoginRequest, db: Session = Depends(get_db)):
 
 @router.post("/refresh")
 def refresh_access_token(
-    token_data: RefreshTokenRequest,
+    response: Response,
+    token_data: RefreshTokenRequest | None = Body(default=None),
+    refresh_cookie: str | None = Cookie(default=None, alias=REFRESH_COOKIE),
     db: Session = Depends(get_db),
 ):
     """
@@ -112,8 +160,11 @@ def refresh_access_token(
       -d '{"refresh_token":"seu-refresh-token"}'
     ```
     """
-    user_id = extract_user_id_from_token(
-        token_data.refresh_token, expected_type="refresh"
+    refresh_token = token_data.refresh_token if token_data else refresh_cookie
+    user_id = (
+        extract_user_id_from_token(refresh_token, expected_type="refresh")
+        if refresh_token
+        else None
     )
 
     if not user_id:
@@ -132,11 +183,23 @@ def refresh_access_token(
     new_access_token = create_access_token(
         data={"sub": str(user.id), "email": user.email}
     )
+    set_refresh_cookie(response, refresh_token)
 
     return {
         "access_token": new_access_token,
         "token_type": "bearer",
     }
+
+
+@router.post("/logout", status_code=status.HTTP_204_NO_CONTENT)
+def logout(response: Response):
+    response.delete_cookie(
+        key=REFRESH_COOKIE,
+        path="/auth",
+        secure=SESSION_COOKIE_SECURE,
+        httponly=True,
+        samesite="lax",
+    )
 
 
 @router.post("/api-key", response_model=APIKeyResponse)

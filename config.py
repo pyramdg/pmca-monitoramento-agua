@@ -32,6 +32,9 @@ if not SECRET_KEY:
 # API
 # A chave do aparelho permanece válida até ser trocada ou desativada.
 API_KEY_EXPIRATION = int(os.getenv("API_KEY_EXPIRATION", "0"))
+SESSION_COOKIE_SECURE = ENV != "development"
+LOGIN_MAX_FAILURES = max(3, int(os.getenv("LOGIN_MAX_FAILURES", "5")))
+LOGIN_WINDOW_SECONDS = max(60, int(os.getenv("LOGIN_WINDOW_SECONDS", "300")))
 
 # O firmware registra uma leitura a cada 10 segundos. Quatro ciclos e meio sem
 # contato são suficientes para sinalizar que o aparelho provavelmente perdeu
